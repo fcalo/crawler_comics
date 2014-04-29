@@ -7,9 +7,13 @@ ovh
 *.conf
 *.zip
 *.csv
+*.csv#
+
 *settings.py
 docs/
 */env/*
+*.log*
+run_test
 
 # C extensions
 *.so
