@@ -1,6 +1,15 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+ovh
+*.jpg
+*.pdf
+*.conf
+*.zip
+*.csv
+*settings.py
+docs/
+*/env/*
 
 # C extensions
 *.so
