@@ -396,6 +396,7 @@ class CrawlerComics(object):
 		self.metas = self.db.load_data(url)
 		now = datetime.now()
 		
+		previous_metas = None
 		
 		if self.metas:
 			date_created = time.strptime(self.metas['extra_field_1'].strip(), "%d/%m/%Y")
@@ -416,6 +417,9 @@ class CrawlerComics(object):
 					if self.config['check_images_without_changes']:
 						self.upload_images()
 					return True
+					
+				previous_metas['stock'] = self.metas['stock']
+				previous_metas['price'] = self.metas['price']
 		
 		self.init_metas()
 		self.metas['category'] = category.upper()
@@ -596,6 +600,13 @@ class CrawlerComics(object):
 		  
 		if d_created > now: 
 			self.metas['stock'] = 40
+			
+		if previous_metas:
+			#has been seen already
+			if previos_metas['stock'] == self.metas['stock'] and previos_metas['price'] == self.metas['prive']:
+				#has modifications but not in price or stock. Dont update.
+				return True
+			
 		  
 		self.metas['instock_message'] = "Pre-Reserva" if self.metas['stock'] == 40 \
 		  else "Añadir a Lista de Espera" if self.metas['stock'] == 0 \
