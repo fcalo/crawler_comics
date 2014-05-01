@@ -37,7 +37,7 @@ class mFTP_TLS(FTP_TLS):
 
 
 class CrawlerComics(object):
-	def __init__(self, verbose = False, id_task = None, mode = 0):
+	def __init__(self, verbose = False, id_task = None, mode = "0"):
 		
 		self.verbose = verbose
 		
@@ -119,7 +119,7 @@ class CrawlerComics(object):
 		   "MERCHANDISING - JUGUETES" : "MERCHANDISING",
 		   "MERCHANDISING LIBROS" : "MERCHANDISING",
 		   "PANINI MARVEL EXCLUSIVA" : "PANINI MARVEL",
-		   "COMPLEMENTOS" : "ACCESORIOS JUEGOS", 
+		   "COMPLEMENTOS" : "ACCESORIOS", 
 		   "JUEGOS DE CARTAS COLECC" : "JUEGOS",
 		   "JUEGOS DE MESA" : "JUEGOS"}
 		   
@@ -394,6 +394,8 @@ class CrawlerComics(object):
 		self.tree = etree.fromstring(self.download_url(url), self.parser)
 		
 		self.metas = self.db.load_data(url)
+		
+		
 		now = datetime.now()
 		
 		previous_metas = None
@@ -428,6 +430,8 @@ class CrawlerComics(object):
 		#remove tildes
 		self.metas['category'] = self.normalize_category(self.metas['category'])
 		self.metas['subcategory'] = self.normalize_category(self.metas['subcategory'])
+		
+		is_merchandising = "MERCHANDISING" in self.metas['category']
 		
 		#category validations
 		if self.metas['category'] in self.category_alias:
@@ -510,7 +514,7 @@ class CrawlerComics(object):
 		
 		d_created = datetime(date_created.tm_year, date_created.tm_mon, date_created.tm_mday)
 		
-		title_collection = get_title_collection(self.metas['title'])
+		title_collection = get_title_collection(self.metas['title'], self.metas['category'], self.metas['manufacturer'])
 
 		
 		
@@ -554,6 +558,8 @@ class CrawlerComics(object):
 		self.metas['cost'] = float(self.metas['price2'].replace(".","").replace(",",".")) * 0.7
 			
 		self.metas['price'] = float(self.metas['price2'].replace(".","").replace(",",".")) * 0.95
+		
+		
 		if not 'category' in self.metas:
 			self.metas['category'] = "UNK"
 		self.metas['tax_code'] = 'IVL' if self.metas['category'] in ['LIBROS', 'COMICS', 'DVD-BLU RAY', 'REVISTAS'] else 'IVO'
@@ -590,9 +596,6 @@ class CrawlerComics(object):
 		
 		self.metas['metatags'] = '<META NAME="KEYWORDS" CONTENT="%s">' % self.metas['keywords']
 		
-		
-		
-		
 		l_stock = self.metas['label_stock'].lower()
 		
 		self.metas['stock'] = 40 if u"próxima" in l_stock else 10 \
@@ -611,6 +614,7 @@ class CrawlerComics(object):
 		self.metas['instock_message'] = "Pre-Reserva" if self.metas['stock'] == 40 \
 		  else "Añadir a Lista de Espera" if self.metas['stock'] == 0 \
 		  else "En Stock - 3/5 Días"
+		
 		  
 		self.metas['reward_points'] = int(self.metas['price'] * 20 if d_created > now else self.metas['price'] * 10)
 		
@@ -634,7 +638,7 @@ class CrawlerComics(object):
 
 		for meta in self.metas:
 			if isinstance(self.metas[meta],float):
-				self.metas[meta] = str(round(self.metas[meta],2)).replace(".",",")
+				self.metas[meta] = str(round(self.metas[meta],2))
 			#~ print meta, self.metas[meta]
 			
 		self.db.save_data(url, self.metas, self.id_task)
@@ -717,8 +721,11 @@ class CrawlerComics(object):
 					
 		ftps.quit()
 		
+	
+		
 	def get_metas_orderer(self):
 		"""select metas required"""
+		
 
 		return [self.metas[meta] if meta in self.metas and self.metas[meta] \
 		  or (not "extra_field" in meta) else "N/A" for meta in self.config['csv_header']]
@@ -727,7 +734,8 @@ class CrawlerComics(object):
 	def print_line(self, line, header = False):
 		"""print line in csv"""
 		
-		#~ pprint(line)
+		#~ pprint([str(i).replace(",", ".") if is_number(i) else i for i in line])
+		#~ pprint([is_number(i) for i in line])
 		with open(self.filename_csv, 'wb' if header else 'ab') as csvfile:
 			csvwriter = csv.writer(csvfile, delimiter='\t',quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
 			csvwriter.writerow(line)
@@ -799,10 +807,12 @@ class CrawlerComics(object):
 		
 		for url_data in datas:
 			self.metas = url_data
+			self.metas['category'] = self.metas['categories'].split("@")[0]
+			self.metas['manufacturer'] = self.metas['categories'].split("/")[-2]
 			
-			title_collection = get_title_collection(self.metas['title'])
+			title_collection = get_title_collection(self.metas['title'], self.metas['category'], self.metas['manufacturer'])
 			if title_collection != self.metas['title']:
-				number_collection = get_number_collection(self.metas['title'])
+				number_collection = get_number_collection(self.metas['title'], self.metas['id'], self.metas['category'])
 				
 				related = self.db.get_related(title_collection, number_collection, self.id_task)
 				accesories =  self.db.get_accesories(title_collection, number_collection, self.id_task)
@@ -824,10 +834,12 @@ class CrawlerComics(object):
 		
 		for url_data in datas:
 			self.metas = url_data
+			self.metas['category'] = self.metas['categories'].split("@")[0]
+			self.metas['manufacturer'] = self.metas['categories'].split("/")[-2]
 			
-			title_collection = get_title_collection(self.metas['title'])
+			title_collection = get_title_collection(self.metas['title'], self.metas['category'], self.metas['manufacturer'])
 			if title_collection != self.metas['title']:
-				number_collection = get_number_collection(self.metas['title'])
+				number_collection = get_number_collection(self.metas['title'], self.metas['id'], self.metas['category'], )
 				
 				related = self.db.get_related(title_collection, number_collection, self.id_task)
 				accesories =  self.db.get_accesories(title_collection, number_collection, self.id_task)
@@ -886,7 +898,10 @@ if __name__ == '__main__':
 		if "http" in sys.argv[1]:
 			for url in sys.argv[1:]:
 				crawl = CrawlerComics()
-				crawl.extract_product(url, "a", "b")
+				crawl.extract_product(url, "merchandising", "b")
+				crawl.generate_csv()
+			
+				crawl.db.finish_task(crawl.id_task)
 		else:
 			crawl = CrawlerComics(id_task = sys.argv[1], mode = sys.argv[2])
 			crawl.run()

@@ -79,8 +79,6 @@ class DB(object):
 	def save_data(self, url, metas, id_task):
 		""" save all data for url """
 		
-		#~ pprint(metas)
-		
 		self.logger.info("[DB.save_data] salvando datos para %s" % url)
 		try:
 			sql = u"INSERT INTO url (url, crc_content, last_seen_date, last_seen_task, %s)\
@@ -88,6 +86,7 @@ class DB(object):
 			  (",".join([k for k in self.config['csv_header'] if k in metas]), \
 			  url, crc32(metas['content']), id_task, \
 			  "', '".join([metas[k].decode("utf-8") if isinstance(metas[k], basestring) else str(metas[k]) for k in self.config['csv_header'] if k in metas]))
+			  
 		except:
 			pprint(metas)
 			raise
@@ -138,6 +137,7 @@ class DB(object):
 		""" return all data collected by one task """
 		self.logger.info("[DB.get_data_task] devolviendo datos de la tarea %s" % id_task)
 		
+		
 		if complete:
 			self.cur.execute("SELECT * FROM url WHERE last_seen_task = %s ORDER BY last_seen_date ASC" % id_task)
 		else:
@@ -160,12 +160,12 @@ class DB(object):
 	def get_same_collection(self, title_collection, number_collection, id_task, asc = True):
 		""" search the titles for the same collection """
 		
-		self.cur.execute("SELECT id, title FROM url WHERE title like '%s%%' and last_seen_task = '%s'" % (title_collection, id_task))
+		self.cur.execute("SELECT id, title, categories FROM url WHERE title like '%s%%' and last_seen_task = '%s'" % (title_collection, id_task))
 		
 		same = {}
 		for data in self.cur.fetchall():
 			if number_collection:
-				n_collection = get_number_collection(data['title'])
+				n_collection = get_number_collection(data['title'], data['id'], data['categories'].split("@")[0])
 				if (asc and n_collection > number_collection) or \
 				 (not asc and n_collection < number_collection):
 					same[n_collection] = data['id']
