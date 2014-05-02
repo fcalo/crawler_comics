@@ -66,7 +66,7 @@ class CrawlerComics(object):
 		
 		self.init_metas()
 		
-		#key: [xpath, "caracter_separador-posicion]
+		#key: [xpath, "label(s)"]
 		self.xpaths= {"id":["/html/body/table[2]/tr[1]/td[3]/table[3]/tr[6]/td/table/tr[1]/td[2]/h3[1]//text()","REF"],
 			"mfgid":["/html/body/table[2]/tr[1]/td[3]/table[3]/tr[6]/td/table/tr[1]/td[2]/h3[1]//text()","REF"],
 			"name":["/html/body/table[2]/tr[1]/td[3]/table[3]/tr[6]/td/table/tr[1]/td[2]/h2//text()"],
@@ -898,7 +898,7 @@ if __name__ == '__main__':
 		if "http" in sys.argv[1]:
 			for url in sys.argv[1:]:
 				crawl = CrawlerComics()
-				crawl.extract_product(url, "merchandising", "b")
+				crawl.extract_product(url, "a", "b")
 				crawl.generate_csv()
 			
 				crawl.db.finish_task(crawl.id_task)

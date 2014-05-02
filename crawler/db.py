@@ -27,6 +27,8 @@ class DB(object):
 
 		#if not root fail:
 		
+		self.table_name= self.config['distributor'].replace(" ", "_").lower()
+		
 		self.cur = self.con.cursor()
 		if self.config['create_model']:
 			self.cur.execute("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET =utf8 " % self.config['mysql_db'])
@@ -52,7 +54,7 @@ class DB(object):
 			self.cur.execute(sql)
 			  
 			#url table
-			sql = "CREATE TABLE IF NOT EXISTS url ( \
+			sql = "CREATE TABLE IF NOT EXISTS %s ( \
 			  url VARCHAR(255) PRIMARY KEY, \
 			  crc_content int(4), \
 			  last_seen_date datetime, \
@@ -60,7 +62,7 @@ class DB(object):
 			  last_mod_task int(6) , %s, \
 			  INDEX last_seen_task (last_seen_task) \
 			  ) CHARACTER SET=utf8;" % \
-			  ",".join(["%s TEXT NULL" % k for k in self.config['csv_header']])
+			  (self.table_name, ",".join(["%s TEXT NULL" % k for k in self.config['csv_header']]))
 			  
 			self.cur.execute(sql)
 			self.con.commit()
@@ -81,9 +83,9 @@ class DB(object):
 		
 		self.logger.info("[DB.save_data] salvando datos para %s" % url)
 		try:
-			sql = u"INSERT INTO url (url, crc_content, last_seen_date, last_seen_task, %s)\
+			sql = u"INSERT INTO %s (url, crc_content, last_seen_date, last_seen_task, %s)\
 			  VALUES ('%s', %d, NOW(), %d, '%s')" %  \
-			  (",".join([k for k in self.config['csv_header'] if k in metas]), \
+			  (self.table_name, ",".join([k for k in self.config['csv_header'] if k in metas]), \
 			  url, crc32(metas['content']), id_task, \
 			  "', '".join([metas[k].decode("utf-8") if isinstance(metas[k], basestring) else str(metas[k]) for k in self.config['csv_header'] if k in metas]))
 			  
@@ -96,7 +98,7 @@ class DB(object):
 			self.cur.execute(sql)
 		except IntegrityError:
 			#modification
-			self.cur.execute("DELETE FROM url WHERE url = '%s'" % url)
+			self.cur.execute("DELETE FROM %s WHERE url = '%s'" % (self.table_name, url))
 			#one field more
 			sql_mod = sql.replace(", last_seen_task,", ", last_seen_task, last_mod_task,")
 			sql_mod = sql_mod.replace("NOW(), %d," % id_task, "NOW(), %d, %d," % (id_task, id_task)) 
@@ -109,8 +111,8 @@ class DB(object):
 		
 		self.logger.info("[DB.refresh_seen] %s" % url)
 		
-		self.cur.execute("UPDATE url set last_seen_date = NOW(), last_seen_task = %d \
-		  WHERE url = '%s'" % (id_task, url))
+		self.cur.execute("UPDATE %s set last_seen_date = NOW(), last_seen_task = %d \
+		  WHERE url = '%s'" % (self.table_name, id_task, url))
 		
 		return self.con.commit()
 		
@@ -121,7 +123,7 @@ class DB(object):
 		
 		metas = None
 		
-		self.cur.execute("SELECT * FROM url WHERE url = '%s'" % url)
+		self.cur.execute("SELECT * FROM %s WHERE url = '%s'" % (self.table_name, url))
 		
 		try:
 			data = self.cur.fetchall()[0]
@@ -139,9 +141,9 @@ class DB(object):
 		
 		
 		if complete:
-			self.cur.execute("SELECT * FROM url WHERE last_seen_task = %s ORDER BY last_seen_date ASC" % id_task)
+			self.cur.execute("SELECT * FROM %s WHERE last_seen_task = %s ORDER BY last_seen_date ASC" % (self.table_name, id_task))
 		else:
-			self.cur.execute("SELECT * FROM url WHERE last_mod_task = %s ORDER BY last_seen_date ASC" % id_task)
+			self.cur.execute("SELECT * FROM %s WHERE last_mod_task = %s ORDER BY last_seen_date ASC" % (self.table_name, id_task))
 			#TODO: deletes
 			#self.cur.execute("SELECT * FROM url WHERE last_seen_task < %s ORDER BY last_seen_date ASC" % id_task)
 			
@@ -152,7 +154,7 @@ class DB(object):
 		""" return all data collected by one task """
 		self.logger.info("[DB.get_data_task] devolviendo datos de los borrados de la tarea %s" % id_task)
 		
-		self.cur.execute("SELECT * FROM url WHERE last_seen_task < (%s - 1) ORDER BY last_seen_date ASC" % id_task)
+		self.cur.execute("SELECT * FROM %s WHERE last_seen_task < (%s - 1) ORDER BY last_seen_date ASC" % (self.table_name, id_task))
 		
 		return self.cur.fetchall()
 		
@@ -160,7 +162,7 @@ class DB(object):
 	def get_same_collection(self, title_collection, number_collection, id_task, asc = True):
 		""" search the titles for the same collection """
 		
-		self.cur.execute("SELECT id, title, categories FROM url WHERE title like '%s%%' and last_seen_task = '%s'" % (title_collection, id_task))
+		self.cur.execute("SELECT id, title, categories FROM %s WHERE title like '%s%%' and last_seen_task = '%s'" % (self.table_name, title_collection, id_task))
 		
 		same = {}
 		for data in self.cur.fetchall():
