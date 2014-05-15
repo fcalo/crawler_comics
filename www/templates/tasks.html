@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
   <head>
-    <title>Tareas extracción datos SSDistribuciones</title>
+    <title>Tareas automáticas SuperComics</title>
 
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -25,7 +25,7 @@
 				<span class="icon-bar"></span>
 				<span class="icon-bar"></span>
 			  </button>
-			  <a class="navbar-brand" href="/tasks/">Tareas extracción datos SSDistribuciones</a>
+			  <a class="navbar-brand" href="/tasks/">Tareas automáticas SuperComics</a>
 			</div>
 			<div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
 			  <ul class="nav navbar-nav">
@@ -58,11 +58,12 @@
 		  <!-- Table -->
 		  <table class="table">
 			<tr>
-				<th>#</th><th>Fecha Inicio</th><th>Modo</th><th>Estado</th><th>Log</th><th>CSV</th><th>Borrar</th>
+				<th>#</th><th>Fecha Inicio</th><th>Tipo</th><th>Modo</th><th>Estado</th><th>Log</th><th>CSV</th><th>Borrar</th>
 			</tr>
 			{%- for task in tasks %}
 				<tr>
 					<td>{{ task['id_task'] }}</td><td>{{ task['start_date'] }}</td>
+					<td>{{type_tasks[task['type_task']]}}</td>
 					<td>{{"Actualizaciones" if task['mode'] == 1 else "Completo"}}</td>
 					<td>{{"En espera" if task['state'] == 0 else "Procesando" if task['state'] == 1 else "Con errores" if task['state'] == 2 else "Finalizada"}}</td>
 					<td>
@@ -100,6 +101,16 @@
                     <label for="start_date" class="col-lg-2 control-label">Fecha Inicio</label>
                     <div class="col-lg-10">
                       <input type="text" class="form-control" id="start_date" name="start_date" placeholder="Fecha Inicio"/>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="mode" class="col-lg-2 control-label">Tipo</label>
+                    <div class="col-lg-10">
+                      <select name="type_task" id="type_task" class="form-control">
+						  {%- for type_task in type_tasks %}
+							<option value="{{ type_task['id_type_task'] }}">{{ type_task }}</option>
+						  {%- endfor %}
+                      </select>
                     </div>
                   </div>
                   <div class="form-group">

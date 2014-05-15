@@ -20,9 +20,9 @@ db = DB(logger, config_file)
 task = db.get_waiting_task()
 
 if task:
-	crawl_py = os.path.join(os.path.dirname(__file__), "crawl.py")
+	crawl_py = os.path.join(os.path.dirname(__file__), task['file'])
 
-	logger.info("[cron] Lanzando tarea %d, mode %d" % (task['id_task'], task['mode']))
+	logger.info("[cron] Lanzando tarea %s, %d, mode %d" % (crawl_py, task['id_task'], task['mode']))
 	os.system("/usr/bin/python %s %d %d" % (crawl_py, task['id_task'], task['mode']))
 	logger.info("[cron] Terminada tarea %d" % task['id_task'])
 else:

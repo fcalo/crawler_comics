@@ -121,7 +121,15 @@ class CrawlerComics(object):
 		   "PANINI MARVEL EXCLUSIVA" : "PANINI MARVEL",
 		   "COMPLEMENTOS" : "ACCESORIOS", 
 		   "JUEGOS DE CARTAS COLECC" : "JUEGOS",
+		   "JUEGO DE CARTAS COLECC" : "JUEGOS",
+		   "JUEGOS DE MINIATURAS" : "JUEGOS",
+		   "JUEGOS DE ROL" : "JUEGOS",
 		   "JUEGOS DE MESA" : "JUEGOS"}
+		   
+		   
+		self.subcategory_alias = {"VARIOS / OTROS" : "VARIOS"}
+		   
+		self.manufacturer_alias = {"PANINI MARVEL EXCLUSIVA" : "PANINI MARVEL"}
 		   
 		self.category_ban = {"LIBROS" : ["BIOGRAFIA", "MUSICA"],
 		   "COMICS" : ["ENSAYO", "PAPELERIA"],
@@ -146,23 +154,36 @@ class CrawlerComics(object):
 	def normalize_category(self, cat):
 		replace_chars = {u"¿" : "" , u"?" : "" , u"!" : "" , u"¡" : "", 
 		  u"%" : "", u"#" : "" , u"@" : "" , u"Á" : "A", u"É" : "E" , 
-		  u"Í" : "I" , u"Ó" : "O" , u"Ú" : "U"}
+		  u"Í" : "I" , u"Ó" : "O" , u"Ú" : "U", ")" : "", "(" : ""}
 		
 		for c1, c2 in replace_chars.items():
 			cat = cat.replace(c1, c2)
 			
-		return cat
+		return cat.upper()
 	
 	def normalize_path(self, path):
-		replace_chars = {u"Ñ" : "N"}
+		"""prepare a valid path to ftp"""
+		with_url = False
+		if self.config['url_images'] in path:
+			with_url = True
+			path = path.split(self.config['url_images'])[1]
+		
+		replace_chars = {u"Ñ" : "N", "-" : "", "," : "", "." : "", ":" : "",
+		"*" : "", "?" : "", "<" : "", ">" : "", "|" : "", u"·" : "" }
 		
 		for c1, c2 in replace_chars.items():
 			try:
 				path = path.replace(c1, c2)
 			except UnicodeDecodeError:
 				path = path.decode("utf-8").replace(c1, c2)
+		
+		while "  " in path:
+			path = path.replace("  ", " ")
+		
+		if path.endswith("jpg") and not path.endswith(".jpg"):
+			path = "%s.jpg" % path[:-3]
 			
-		return path
+		return "%s%s" %(self.config['url_images'], path) if with_url else path
 	
 			
 	def init_metas(self):
@@ -270,7 +291,8 @@ class CrawlerComics(object):
 		
 		path = os.path.join( os.path.dirname(__file__), "imgs/%s" % self.normalize_path(filename.encode("utf-8")))
 		max_border = 100
-	
+		
+		
 		url = quote(url.encode("utf-8"),":/")	
 		if url.endswith("No_Disponible.gif"):
 			#no image
@@ -282,7 +304,12 @@ class CrawlerComics(object):
 			f = open(path, "w")
 			f.write(r.read())
 			f.close()
-		im = Image.open(path)
+			
+		try:
+			im = Image.open(path)
+		except:
+			self.logger.error("[download_img]No se ha podido abrir %s al descargar %s " % (path, url))
+			return False
 		
 		
 		
@@ -322,7 +349,7 @@ class CrawlerComics(object):
 			
 			
 		if save:
-			im.save(path, "JPEG")
+			im.save(path, "JPEG", quality=100)
 		else:
 			im = Image.open(path)
 			
@@ -331,10 +358,10 @@ class CrawlerComics(object):
 		r_size = (109, 146) if thumbnail else (263, 400)
 		
 		if im.size[0] > r_size[0] or im.size[1] > r_size[1]:
-			im.thumbnail(r_size, Image.ANTIALIAS)
-			im.save(path, "JPEG")
+			im.resize(r_size, Image.ANTIALIAS)
+			im.save(path, "JPEG", quality=100)
 		
-
+		return True
 
 			
 	def download_url(self, url):
@@ -398,7 +425,7 @@ class CrawlerComics(object):
 		
 		now = datetime.now()
 		
-		previous_metas = None
+		previous_metas = {}
 		
 		if self.metas:
 			date_created = time.strptime(self.metas['extra_field_1'].strip(), "%d/%m/%Y")
@@ -407,7 +434,9 @@ class CrawlerComics(object):
 			
 			if now > d_created and "PROXIMAMENTE" in self.metas['categories']:
 				#not modified but publish date exceeded
-				pass
+				
+				#to detect change
+				previous_metas['stock'] = self.metas['stock'] + "0"
 			else:
 			
 				#has been seen before
@@ -422,6 +451,7 @@ class CrawlerComics(object):
 					
 				previous_metas['stock'] = self.metas['stock']
 				previous_metas['price'] = self.metas['price']
+				previous_metas['thumbnail'] = self.metas['thumbnail']
 		
 		self.init_metas()
 		self.metas['category'] = category.upper()
@@ -441,6 +471,9 @@ class CrawlerComics(object):
 				#subcategory
 				if self.metas['subcategory'] in self.category_alias[self.metas['category']]:
 					self.metas['subcategory'] = self.category_alias[self.metas['category']][self.metas['subcategory']]
+					
+		if self.metas['subcategory'] in self.subcategory_alias:
+			self.metas['subcategory'] = self.subcategory_alias[self.metas['subcategory']]
 		
 		
 		#category bans
@@ -502,9 +535,26 @@ class CrawlerComics(object):
 				
 		if "lprice" in self.metas and "rprice" in self.metas:	
 			self.metas['price2'] = self.metas['lprice'] if "PRECIO FINAL" in self.metas['rprice'] else self.metas['rprice']
+			precio_neto = "PRECIO NETO" in self.metas['price2']
+			
 			self.metas['price2'] = self.metas['price2'].split(":")[1].strip()
 			del self.metas['lprice']
 			del self.metas['rprice']
+		
+		if "por confirmar" in self.metas['price2'].lower():
+			self.metas['price2'] = "0"
+		else:
+			#without euro symbol
+			self.metas['price2'] = self.metas['price2'].replace(u"\xa0\u20ac","")
+		
+		if precio_neto:
+			self.metas['cost'] = self.metas['price2']
+			self.metas['price2'] = float(self.metas['cost'].replace(".","").replace(",",".")) * 1.55
+			self.metas['price'] = float(self.metas['cost'].replace(".","").replace(",",".")) * 1.50
+		else:
+			self.metas['cost'] = float(self.metas['price2'].replace(".","").replace(",",".")) * 0.7
+			self.metas['price'] = float(self.metas['price2'].replace(".","").replace(",",".")) * 0.95
+		
 		
 		
 		
@@ -514,23 +564,29 @@ class CrawlerComics(object):
 		
 		d_created = datetime(date_created.tm_year, date_created.tm_mon, date_created.tm_mday)
 		
+		
+		if self.metas['manufacturer'] in self.manufacturer_alias:
+			self.metas['manufacturer'] = self.manufacturer_alias[self.metas['manufacturer']]
 		title_collection = get_title_collection(self.metas['title'], self.metas['category'], self.metas['manufacturer'])
-
 		
+		manufacturer = self.metas['manufacturer'] if self.metas['manufacturer'] else "VARIOS"
 		
-		if now > d_created: 
-			#comming
+		l_stock = self.metas['label_stock'].lower()
+		
+		#~ if now > d_created: 
+		if not u"próxima" in l_stock: 
 			#CATEGORIA_PRINCIPAL@CATEGORIA_PRINCIPAL/SUBCATEGORIA@CATEGORIA_PRINCIPAL/SUBCATEGORIA/EDITORIAL@CATEGORIA_PRINCIPAL/SUBCATEGORIA/EDITORIAL/TITULO -(menos ó sin) NUMERO COLECCION
 			self.metas['categories'] = "%s@%s/%s@%s/%s/%s@%s/%s/%s/%s" % \
 			  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
-			  self.metas['category'], self.metas['subcategory'], self.metas['manufacturer'], \
-			  self.metas['category'], self.metas['subcategory'], self.metas['manufacturer'], \
+			  self.metas['category'], self.metas['subcategory'], manufacturer, \
+			  self.metas['category'], self.metas['subcategory'], manufacturer, \
 			  title_collection)
 		else:
+			#comming
 			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s@PROXIMAMENTE/%s/%s/%s/%s" % \
 			  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
-			  self.metas['category'], self.metas['subcategory'], self.metas['manufacturer'], \
-			  self.metas['category'], self.metas['subcategory'], self.metas['manufacturer'], \
+			  self.metas['category'], self.metas['subcategory'], manufacturer, \
+			  self.metas['category'], self.metas['subcategory'], manufacturer, \
 			  title_collection)
 		
 		self.metas['homespecial'] = 1 if abs((now - d_created).days) <10 else 0
@@ -546,18 +602,8 @@ class CrawlerComics(object):
 				
 				finalname = "%s%s/%s/%s/%s" % (self.config['url_images'], self.metas['category'], self.metas['subcategory'], \
 				  self.metas['manufacturer'], filename)
-				self.metas[key_image] = self.normalize_path(finalname)
+				self.metas[key_image] = "%s.jpg" % self.normalize_path(finalname.replace(".jpg", ""))
 				
-		
-		if "por confirmar" in self.metas['price2'].lower():
-			self.metas['price2'] = "0"
-		else:
-			#without euro symbol
-			self.metas['price2'] = self.metas['price2'].replace(u"\xa0\u20ac","")
-		
-		self.metas['cost'] = float(self.metas['price2'].replace(".","").replace(",",".")) * 0.7
-			
-		self.metas['price'] = float(self.metas['price2'].replace(".","").replace(",",".")) * 0.95
 		
 		
 		if not 'category' in self.metas:
@@ -576,12 +622,12 @@ class CrawlerComics(object):
 			return s
 				
 		
-		self.metas['description'] = smart_truncate(clean_spaces(self.metas['description'])).encode("utf-8")
-		self.metas['extended_description'] = clean_spaces(self.metas['extended_description']).encode("utf-8")
+		self.metas['description'] = smart_truncate(clean_spaces(self.metas['description']))
+		self.metas['extended_description'] = clean_spaces(self.metas['extended_description'])
 		
 		
 		keys_keywords = ["category", "subcategory", "manufacturer", "title", "extra_field_10", "extra_field_3"]
-		self.metas['keywords'] = ", ".join(self.metas[i].strip() for i in keys_keywords if i in self.metas and len(self.metas[i])>1).encode("utf-8")
+		self.metas['keywords'] = ", ".join(self.metas[i].strip() for i in keys_keywords if i in self.metas and len(self.metas[i])>1)
 		
 		def cut_last_comma(s):
 			if s[-1] == ",":
@@ -596,7 +642,7 @@ class CrawlerComics(object):
 		
 		self.metas['metatags'] = '<META NAME="KEYWORDS" CONTENT="%s">' % self.metas['keywords']
 		
-		l_stock = self.metas['label_stock'].lower()
+		
 		
 		self.metas['stock'] = 40 if u"próxima" in l_stock else 10 \
 		  if "saldado" in l_stock or "disponible" in l_stock else 0
@@ -606,7 +652,9 @@ class CrawlerComics(object):
 			
 		if previous_metas:
 			#has been seen already
-			if previos_metas['stock'] == self.metas['stock'] and previos_metas['price'] == self.metas['prive']:
+			if previous_metas['stock'] == self.metas['stock'] and \
+				previous_metas['price'] == self.metas['price'] and \
+				previous_metas['thumbnail'] == self.metas['thumbnail']:
 				#has modifications but not in price or stock. Dont update.
 				return True
 			
@@ -618,28 +666,37 @@ class CrawlerComics(object):
 		  
 		self.metas['reward_points'] = int(self.metas['price'] * 20 if d_created > now else self.metas['price'] * 10)
 		
-		self.metas['extra_field_4'] = self.metas['extra_field_4a'].encode("utf-8") if 'extra_field_4a' in self.metas \
-		  and self.metas['extra_field_4a'] else self.metas['extra_field_4b'].encode("utf-8") \
+		self.metas['extra_field_4'] = self.metas['extra_field_4a'] if 'extra_field_4a' in self.metas \
+		  and self.metas['extra_field_4a'] else self.metas['extra_field_4b'] \
 		  if 'extra_field_4b' in self.metas else ""
 		  
 		if 'extra_field_11' in self.metas and self.metas['extra_field_11']:
 			self.metas['extra_field_11'] = "<div>%s</div>" % self.metas['extra_field_11']
 			
-		encode_keys = ["id", "mfgid", "title", "name", "categories", "extra_field_10", "thumbnail", \
-		  "image1", "image2", "image3", "image4", "content", "extra_field_3", "extra_field_2", "extra_field_5", "manufacturer"] 
-		for encode_key in encode_keys:
-			if encode_key in self.metas:
-				try:
-					self.metas[encode_key] = self.metas[encode_key].encode("utf-8")
-				except:
-					print encode_key, self.metas[encode_key], repr(self.metas[encode_key])
-					
-					raise
-
+		#~ encode_keys = ["id", "mfgid", "title", "name", "categories", "extra_field_10", "thumbnail", \
+		  #~ "image1", "image2", "image3", "image4", "content", "extra_field_3", "extra_field_2", "extra_field_5", "manufacturer"] 
+		#~ for encode_key in encode_keys:
+			#~ if encode_key in self.metas:
+				#~ try:
+					#~ self.metas[encode_key] = self.metas[encode_key].encode("utf-8")
+				#~ except:
+					#~ print encode_key, self.metas[encode_key], repr(self.metas[encode_key])
+					#~ 
+					#~ raise
+		if isinstance(self.metas['price2'], basestring):
+			self.metas['price2'] = self.metas['price2'].replace(",", ".")
+		if isinstance(self.metas['cost'], basestring):
+			self.metas['cost'] = self.metas['cost'].replace(",", ".")
 		for meta in self.metas:
 			if isinstance(self.metas[meta],float):
 				self.metas[meta] = str(round(self.metas[meta],2))
 			#~ print meta, self.metas[meta]
+			else:
+				if isinstance(self.metas[meta],basestring):
+					try:
+						self.metas[meta] = self.metas[meta].encode("utf-8")
+					except UnicodeDecodeError:
+						pass
 			
 		self.db.save_data(url, self.metas, self.id_task)
 		#~ self.print_line(self.get_metas_orderer())
@@ -653,6 +710,8 @@ class CrawlerComics(object):
 		while not connected:
 			try:
 				ftps = mFTP_TLS(self.config['ftp_host'], timeout = 60)
+				ftps.login(self.config['ftp_user'], self.config['ftp_pass'])
+				ftps.prot_p()
 				connected = True
 			except:
 				tries +=1
@@ -661,8 +720,7 @@ class CrawlerComics(object):
 				time.sleep(tries)
 			
 		
-		ftps.login(self.config['ftp_user'], self.config['ftp_pass'])
-		ftps.prot_p()
+		
 		
 		#~ print ftps.retrlines('LIST')
 		
@@ -671,7 +729,7 @@ class CrawlerComics(object):
 			if key_image in self.metas and self.metas[key_image]:
 				
 				self.logger.info("[upload_images] subiendo %s" % self.metas[key_image].replace(self.config['url_images'],""))
-				paths = ["nuevoSD"] + self.metas[key_image].replace(self.config['url_images'],"").split("/")[:-1]
+				paths = [self.config["root_img"]] + self.metas[key_image].replace(self.config['url_images'],"").split("/")[:-1]
 				filename = self.metas[key_image].replace(self.config['url_images'],"").split("/")[-1]
 				local_filename = os.path.join(os.path.dirname(__file__),"imgs/%s" % filename)
 				for path in paths:
@@ -747,12 +805,20 @@ class CrawlerComics(object):
 		
 		try:
 			self.db.init_task(self.id_task)
+			
+			self.logger.info("[run] comprobando get_title_collection")
+			if not test_get_title_collection():
+				self.logger.info("[run] hay algún problema con get_title_collection. Revisar...")
+				self.db.finish_task(self.id_task, True)
+				return False
+				
 	
 			self.tree = etree.fromstring(self.download_url(self.config['start_url']), self.parser)
 			start_week = self.extract("/html/body/table[2]/tr[1]/td[3]/table[3]/tr[6]/td/a[1]/@href").split("/")[-2]
 			
 			week = int(start_week[-2:])
 			year = int(start_week[:4])
+			start_year = year
 			
 			#forward
 			n_products = 1
@@ -765,6 +831,9 @@ class CrawlerComics(object):
 				if week > 52:
 					week = 1
 					year += 1
+				#to end of year
+				if year == start_year:
+					n_products = 1
 					
 			#back
 			week = int(start_week[-2:])
@@ -782,6 +851,8 @@ class CrawlerComics(object):
 				if week < 1:
 					week = 52
 					year -= 1
+				if year > 2002:
+					n_products = 1
 					
 			self.generate_csv()
 			
@@ -863,7 +934,6 @@ class CrawlerComics(object):
 		"""extract all products of the page"""
 		
 		url = self.config['discover_url'] % (int(year), int(week))
-		print url
 		
 		self.logger.info("[extract_products] recorriendo %s" % url)
 		self.tree = etree.fromstring(self.download_url(url), self.parser)
@@ -898,7 +968,11 @@ if __name__ == '__main__':
 		if "http" in sys.argv[1]:
 			for url in sys.argv[1:]:
 				crawl = CrawlerComics()
-				crawl.extract_product(url, "a", "b")
+				#~ crawl.extract_product(url, "a", "b")
+				
+
+				crawl.extract_product(url, u"DVD - BLU·RAY", u"ANIMACIÓN")
+				#~ crawl.extract_product(url, "MERCHANDISING", "b")
 				crawl.generate_csv()
 			
 				crawl.db.finish_task(crawl.id_task)

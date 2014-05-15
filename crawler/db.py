@@ -83,26 +83,41 @@ class DB(object):
 		
 		self.logger.info("[DB.save_data] salvando datos para %s" % url)
 		try:
+			
+			
 			sql = u"INSERT INTO %s (url, crc_content, last_seen_date, last_seen_task, %s)\
 			  VALUES ('%s', %d, NOW(), %d, '%s')" %  \
 			  (self.table_name, ",".join([k for k in self.config['csv_header'] if k in metas]), \
-			  url, crc32(metas['content']), id_task, \
-			  "', '".join([metas[k].decode("utf-8") if isinstance(metas[k], basestring) else str(metas[k]) for k in self.config['csv_header'] if k in metas]))
+			  self.escape(url), crc32(metas['content']), id_task, \
+			  u"', '".join([self.escape(metas[k].decode("utf-8")) if isinstance(metas[k], basestring) else self.escape(str(metas[k])) for k in self.config['csv_header'] if k in metas]))
 			  
-		except:
+		except Exception as e:
+			try:
+				print sql
+			except:
+				pass
+			#~ for meta in metas.values():
+				#~ print meta
+				#~ if isinstance(meta, basestring):
+					#~ print meta.decode("utf-8")
+			
 			pprint(metas)
-			raise
+			print repr(self.escape(url))
+			raise e
 		  
 		  
 		try:
 			self.cur.execute(sql)
 		except IntegrityError:
 			#modification
-			self.cur.execute("DELETE FROM %s WHERE url = '%s'" % (self.table_name, url))
+			self.cur.execute("DELETE FROM %s WHERE url = '%s'" % (self.table_name, self.escape(url)))
 			#one field more
 			sql_mod = sql.replace(", last_seen_task,", ", last_seen_task, last_mod_task,")
 			sql_mod = sql_mod.replace("NOW(), %d," % id_task, "NOW(), %d, %d," % (id_task, id_task)) 
 			self.cur.execute(sql_mod)
+		except:
+			print sql
+			raise
 			
 		return self.con.commit()
 		  
@@ -112,9 +127,18 @@ class DB(object):
 		self.logger.info("[DB.refresh_seen] %s" % url)
 		
 		self.cur.execute("UPDATE %s set last_seen_date = NOW(), last_seen_task = %d \
-		  WHERE url = '%s'" % (self.table_name, id_task, url))
+		  WHERE url = '%s'" % (self.table_name, id_task, self.escape(url)))
 		
 		return self.con.commit()
+		
+	def escape(self, url):
+		
+		return url.replace("'", "\\'") if isinstance(url, basestring) else url
+		#~ try:
+			#~ return self.con.escape_string(url)
+		#~ except UnicodeEncodeError:
+			#~ return self.con.escape_string(url.encode("utf-8"))
+		
 		
 	def load_data(self, url):
 		""" return data for url if exists"""
@@ -122,8 +146,12 @@ class DB(object):
 		self.logger.info("[DB.load_data] intentando recuperar data para %s" % url)
 		
 		metas = None
-		
-		self.cur.execute("SELECT * FROM %s WHERE url = '%s'" % (self.table_name, url))
+		try:
+			sql = "SELECT * FROM %s WHERE url = '%s'" % (self.table_name, self.escape(url))
+			self.cur.execute(sql)
+		except:
+			print sql
+			raise
 		
 		try:
 			data = self.cur.fetchall()[0]
@@ -162,7 +190,7 @@ class DB(object):
 	def get_same_collection(self, title_collection, number_collection, id_task, asc = True):
 		""" search the titles for the same collection """
 		
-		self.cur.execute("SELECT id, title, categories FROM %s WHERE title like '%s%%' and last_seen_task = '%s'" % (self.table_name, title_collection, id_task))
+		self.cur.execute("SELECT id, title, categories FROM %s WHERE title like '%s%%' and last_seen_task = '%s'" % (self.table_name, self.escape(title_collection), id_task))
 		
 		same = {}
 		for data in self.cur.fetchall():
@@ -178,10 +206,6 @@ class DB(object):
 			return None
 			
 			
-		print same
-		print sorted(same)
-		print list(reversed(sorted(same)))
-		
 		sorted_keys = list(reversed(sorted(same))) if asc else sorted(same)
 		
 		return [same[k] for k in sorted_keys[:6]]
@@ -222,17 +246,38 @@ class DB(object):
 		
 	def get_waiting_task(self):
 		""" search for the task in state waiting """
-		self.cur.execute("SELECT count(*) c FROM task WHERE state = 1")
-		if self.cur.fetchall()[0]['c'] > 0:
-			#another running
-			return None
 		
-		self.cur.execute("SELECT * FROM task WHERE state = 0 order by id_task")
+		self.cur.execute("SELECT t.*,tt.scriptname file  FROM  task t \
+		  INNER JOIN type_task tt ON tt.id_type_task = t.type_task \
+		  WHERE state = 0 AND NOT EXISTS (SELECT 1 FROM task \
+		  WHERE type_task = t.type_task AND state = 1)")
 		try:
 			return self.cur.fetchall()[0]
 		except IndexError:
 			return None
+			
+	def get_data_supplier(self, supplier):
+		""" return all data from one supplier table """
 		
+		self.cur.execute("SELECT * FROM %s order by id, last_seen_task DESC" % supplier)
+		
+		return self.cur.fetchall()
+		
+	def get_last_task_supplier(self, supplier):
+		""" return all data from one supplier table """
+		
+		self.cur.execute("SELECT max(last_seen_task) task FROM %s" % supplier)
+		
+		return self.cur.fetchall()[0]['task']
+	
+	def get_name_supplier(self, supplier):
+		""" return all data from one supplier table """
+		
+		self.cur.execute("SELECT name FROM supplier where `table`='%s'" % supplier)
+		
+		return self.cur.fetchall()[0]['name']
+		
+	
 		
 		
 		
