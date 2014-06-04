@@ -50,7 +50,7 @@ class CrawlerComics_2(CrawlerComics):
 				"extra_field_7": ['.//table/tr[5]/td[2]/text()'],
 				"extra_field_11": ['.//table/tr[5]/td[2]/text()'],
 				"subcategory": ['.//table/tr[11]/td[2]/text()'],
-				"extra_field_5": ['.//table/tr[11]/td[2]/text()'],
+				"extra_field_5": ['.//table/tr[7]/td[2]/text()'],
 				"extra_field_10": ['.//table/tr[2]/td[2]//text()'],
 				"extra_field_1": ['.//table/tr[12]/td[2]/text()'],
 				"extra_field_4": ['.//table/tr[8]/td[2]/text()'],
@@ -62,8 +62,13 @@ class CrawlerComics_2(CrawlerComics):
 				"content": ['.//text()']
 			}
 		
+		
+		
 		self.category_alias = {"BABEL" : "COMIC EUROPEO"
+			, "Babel" : "COMIC EUROPEO"
 			, u"BD - Autores Européos" : "COMIC EUROPEO"
+			, u"BD - Autores Europeos" : "COMIC EUROPEO"
+			, u"BD - AUTORES EUROPEOS" : "COMIC EUROPEO"
 			, u"Colección Trazado" : "COMIC INDEPENDIENTE"
 			, u"Cómics Clásicos" : "HUMOR"
 			, u"Cómics Españoles" : u"COMIC ESPAÑOL"
@@ -72,7 +77,7 @@ class CrawlerComics_2(CrawlerComics):
 			, u"Independientes USA" : u"COMIC USA"
 			, u"Novelas Star Wars" : u"COMIC USA"
 			}
-		self.category_ban = {"MERCHANDISING LOS MUERTOS VIVIENTES":""}
+		self.category_ban = {"MERCHANDISING LOS MUERTOS VIVIENTES":"", "Merchandising Los Muertos Vivientes" : ""}
 		
 		self.db = DB(self.logger, config_file)
 		self.db.init_model()
@@ -88,16 +93,22 @@ class CrawlerComics_2(CrawlerComics):
 		self.data_external_xml = None
 		
 		self.print_line(self.config["csv_header"], True)
+		self.cj = None
+		
 
 	
-	def init_metas(self):
+	def init_metas(self, previous_metas = False):
 		self.metas = {"distributor" : self.config['distributor'], "category": "COMICS"
-		,"manufacturer" : self.config['distributor'], "tax_code" : "IVL", "extra_field_13": 0}
+		,"manufacturer" : self.config['distributor'], "tax_code" : "IVL", "extra_field_13": 0 if previous_metas else 2}
 		
 		
 	def download_url(self, url, level = False):
 		
-		cj = cookielib.CookieJar()
+		if self.cj is None:
+			self.cj = cookielib.CookieJar()
+		
+		cj = self.cj
+		
 		opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
 
 		opener.addheaders = [('User-agent', self.config['user_agent'])]
@@ -135,9 +146,12 @@ class CrawlerComics_2(CrawlerComics):
 		
 		url = quote(url.encode("utf-8"),":/&?=")
 		
-		str_post = "f_titulo=&f_autor=&f_EAN=&f_codigo=&f_coleccion=-1&filtrar_comics=Filtrar" 
+		str_post = "f_titulo=&f_autor=&f_EAN=&f_codigo=&f_coleccion=-1&filtrar_comics=Filtrar"  
 		
-		req = urllib2.Request(url, str_post)
+		if "fondo.php" in url:
+			req = urllib2.Request(url, str_post)
+		else:
+			req = urllib2.Request(url)
 		
 		
 		downloaded = False
@@ -166,7 +180,7 @@ class CrawlerComics_2(CrawlerComics):
 		else:
 			data = resp.read()
 			
-		if "fondo.php" in url and not "fondo.php?p=1" in url:
+		if "fondo.php" in url and not url.endswith("fondo.php?p=1"):
 			req = urllib2.Request(url)
 		
 			downloaded = False
@@ -230,8 +244,8 @@ class CrawlerComics_2(CrawlerComics):
 				if start and not finish:
 					item = {}
 					item['extra_field_7'] = item['extra_field_11'] = wb.active.cell(row = row_pos, column = 1).value
-					item['id'] = wb.active.cell(row = row_pos, column = 2).value
-					item['title'] = wb.active.cell(row = row_pos, column = 3).value
+					item['id'] = item['mfgid'] = wb.active.cell(row = row_pos, column = 2).value
+					item['title'] = item['name'] = wb.active.cell(row = row_pos, column = 3).value
 					item['stock_log'] = wb.active.cell(row = row_pos, column = 4).value
 					item['price2'] = wb.active.cell(row = row_pos, column = 5).value
 					item['extra_field_10'] = wb.active.cell(row = row_pos, column = 6).value
@@ -241,14 +255,22 @@ class CrawlerComics_2(CrawlerComics):
 					item['extra_field_1'] = "01/01/2008"
 					item['description'] = item['extended_description'] = ""
 					item['image1'] = item['thumbnail'] = "No_Disponible.gif"
-					item['content'] = " ".join(item.values())
+					try:
+						item['content'] = " ".join(["" if i is None else i for i in item.values()])
+					except:
+						self.logger.error(item)
+						raise
+						
 					
 					
 					self.data_external_xml[item['id']] = item
 					
 				row_pos += 1
-		
-		return self.data_external_xml[_id]
+
+		if _id in self.data_external_xml:
+			return self.data_external_xml[_id]
+		else:
+			return None
 			
 			
 		
@@ -264,13 +286,55 @@ class CrawlerComics_2(CrawlerComics):
 		self.tree = etree.fromstring(data_url, self.parser)
 		
 		products = self.extracts('//table[@id="comics_campanya"]/tr')
+		first = True
 		for product in products:
 			_id = product.xpath(".//td[2]/text()")[0]
+			
+			if first:
+				
+				if self.last_first_id and self.last_first_id == _id:
+					#end condition
+					return 0
+				self.last_first_id = _id
+				first = False
+					
+			#~ print _id
 			self.init_metas()
 			self.metas = dict(self.metas.items() + self.get_data_from_external_xml(_id).items())
 			
+			id_product = self.metas['id']
 			
-			n_products += self.process_metas(self.metas['id'])
+			previous_metas = self.db.load_data(id_product)
+			
+			
+			if previous_metas:
+				self.metas['extra_field_13'] = 2
+				#date in pass?
+				now = datetime.now()
+				date_created = time.strptime(self.metas['extra_field_1'].strip(), "%d/%m/%Y")
+				d_created = datetime(date_created.tm_year, date_created.tm_mon, date_created.tm_mday)
+				
+				
+				if d_created < now and "PROXIMAMENTE" in previous_metas['categories']:
+					#not modified but publish date exceeded
+					
+					#to detect change
+					previous_metas['stock'] = self.metas['stock'] + "0"
+				else:
+					#has been seen before
+					
+					content = normalize_content(self.metas['content'])
+					
+					if crc32(content.encode("utf-8")) == previous_metas['crc_content']:
+						#no modifications
+						self.db.refresh_seen(id_product, self.id_task)
+						#ensure images
+						if self.config['check_images_without_changes']:
+							self.upload_images()
+						n_products += 1
+						continue
+			
+			n_products += self.process_metas(id_product, previous_metas = previous_metas)
 			
 		return n_products
 		
@@ -287,8 +351,17 @@ class CrawlerComics_2(CrawlerComics):
 		proximamente = "novedades.php" in url
 		
 		products = self.extracts('//table[@id="llistat_comics"]/tr')
+		first = True
 		for product in products:
 			id_product = product.xpath(self.xpaths['id'][0])[0]
+			
+			if first:
+				if self.last_first_id and self.last_first_id == id_product:
+					self.logger.info("[extract_product] mismo id que en la página anterior(%s). Terminando" % id_product)
+					#end condition
+					return 0
+				self.last_first_id = id_product
+				first = False
 			
 			self.metas = self.db.load_data(id_product)
 			
@@ -302,21 +375,24 @@ class CrawlerComics_2(CrawlerComics):
 					#to detect change
 					previous_metas['stock'] = self.metas['stock'] + "0"
 				else:
-				
 					#has been seen before
-					content = "".join(self.extracts(self.xpaths['content'][0]))
+					content = normalize_content("".join(product.xpath(self.xpaths['content'][0])))
+					
+					
 					if crc32(content.strip().encode("utf-8")) == self.metas['crc_content']:
 						#no modifications
 						self.db.refresh_seen(id_product, self.id_task)
 						#ensure images
 						if self.config['check_images_without_changes']:
 							self.upload_images()
+						
+						n_products += 1
 						continue
 						
 					previous_metas['stock'] = self.metas['stock']
 					previous_metas['price'] = self.metas['price']
 			
-			self.init_metas()
+			self.init_metas(previous_metas)
 			
 			for meta, _xpath in self.xpaths.items():
 				
@@ -375,11 +451,9 @@ class CrawlerComics_2(CrawlerComics):
 			  title_collection)
 		else:
 			#comming
-			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s@PROXIMAMENTE/%s/%s/%s/%s" % \
+			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
 			  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
-			  self.metas['category'], self.metas['subcategory'], manufacturer, \
-			  self.metas['category'], self.metas['subcategory'], manufacturer, \
-			  title_collection)
+			  self.metas['category'], self.metas['subcategory'], manufacturer)
 			  
 		self.metas['categories'] = "@".join([self.normalize_category(c) for c in self.metas['categories'].split("@")])
 		
@@ -422,10 +496,16 @@ class CrawlerComics_2(CrawlerComics):
 				
 			self.metas['description'] = smart_truncate(clean_spaces(self.metas['description']))
 			self.metas['extended_description'] = clean_spaces(self.metas['extended_description'])
+			
 		
 		#stock & instock_message
-		#TODO: comprobar disponibilidad
 		self.metas['stock'] = 40 if proximamente else 10
+		if self.metas['stock'] == 10:
+			try:
+				self.metas['stock'] = 10 if self.get_data_from_external_xml(id_product)['stock_log'] == "OK" else 0
+			except TypeError:
+				pass
+			
 
 		self.metas['instock_message'] = "Pre-Reserva" if self.metas['stock'] == 40 \
 		  else "Añadir a Lista de Espera" if self.metas['stock'] == 0 \
@@ -463,10 +543,12 @@ class CrawlerComics_2(CrawlerComics):
 		keys_keywords = ["category", "subcategory", "manufacturer", "title", "extra_field_10", "extra_field_3"]
 		self.metas['keywords'] = ", ".join(self.metas[i].strip() for i in keys_keywords if i in self.metas and len(self.metas[i])>1)
 		
+		self.metas['extra_field_7'] = "<div>%s</div>" % self.metas['extra_field_7']
+		
 		def cut_last_comma(s):
 			if s[-1] == ",":
 				s = s[:-1]
-			if s[-2] == ", ":
+			if len(s) > 1 and s[-2] == ", ":
 				s = s[:-2]
 			return s
 		
@@ -487,7 +569,9 @@ class CrawlerComics_2(CrawlerComics):
 			self.metas['extra_field_11'] = "<div>%s</div>" % self.metas['extra_field_11']
 		
 		self.metas['price2'] = self.metas['price2'].replace(",", ".")
-			
+		
+		self.metas['content'] =  normalize_content(self.metas['content'])
+		
 		
 		for meta in self.metas:
 			if isinstance(self.metas[meta],float):
@@ -519,9 +603,10 @@ class CrawlerComics_2(CrawlerComics):
 			for url_discover in self.config['discover_urls']:
 				page = 1
 				n_products = 1
+				self.last_first_id = None
 				while n_products > 0:
 					if page > 1 and not "%d" in url_discover:
-						print "Saliendo", url_discover
+						#~ print "Saliendo", url_discover
 						break
 					try:
 						url = url_discover % page
@@ -534,9 +619,8 @@ class CrawlerComics_2(CrawlerComics):
 						n_products = self.extract_product_campana(url)
 					else:
 						n_products = self.extract_product(url)
-					print n_products
 					page += 1
-					if page > 1: break;
+					#~ if page > 2: break;
 					self.logger.info("[run] extraidos %d productos de %s" % (n_products, url))
 					
 					

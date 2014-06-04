@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import re
+import unicodedata
 
 keys_merchandising = ['FIGURAS', 'FIGURA', 'FIG', 'ESTATUAS', 'ESTATUA',
  'CAMISETA', 'TAZA', 'LLAVERO', 'BUSTO', 'CABEZON', 'PELUCHES', 'PELUCHE',
@@ -25,11 +26,32 @@ def get_title_collection(title, category, manufacturer):
 				
 		return "VARIOS %s" % (manufacturer)
 	else:
-		#~ print title
-		if " VOL " in title or " VOL." in title:
-			return title.split(" VOL")[0]
-		if " vol " in title or " vol." in title:
-			return title.split(" vol")[0]
+
+		master_separators = [" VOL ", " vol ", " VOL.", " vol.", " Vol ", 
+		  " Vol. ", u" nº", u" Nº", u" NÚM. ", u" núm. ", u" NúM. ", u" Núm. ",
+		  u" NÚM ", u" núm ", u" NúM ", u" Núm ", " NUM. ", " num. ", " NuM. ", " Num. ",
+		  " NUM ", " num ", " NuM ", " Num ",]
+		
+		for separator in master_separators:
+			extra_separators = ":-"
+			
+			try:
+				t = title.split(separator)[0].strip()
+				if separator in title:
+					#':' is more
+					for s in extra_separators:
+						if s in t and t.index(s) > 3:
+							t = title.split(separator)[0].split(s)[0]
+					return t
+					
+			except UnicodeDecodeError:
+				t = title.decode("utf-8").split(separator)[0].strip()
+				if separator in title.decode("utf-8"):
+					#':' is more
+					for s in extra_separators:
+						if s in t and t.index(s) > 3:
+							t = title.decode("utf-8").split(separator)[0].split(s)[0]
+					return t
 		
 		#~ print "\t\t-"
 		#try with separator chars
@@ -39,15 +61,28 @@ def get_title_collection(title, category, manufacturer):
 		first_word = re.findall(r"[\w']+", title)[0]
 
 		#exclude first word
-		domain = title if any(v in first_word.lower() for v in u"aeiouáéíóú") else title.replace(first_word, "", 1)
+		if len(first_word) < 4:
+			domain = title[4:]
+		else:
+			domain = title if any(v in first_word.lower() for v in u"aeiouáéíóú") else title.replace(first_word, "", 1)
 		  
 		#~ print title.split()[0].lower()
 		#~ print "\t", title, ":::", domain
-		  
+		 
+		 
+		
 		if not any(e in domain for e in exceptions):
-			for sep in ".:-":
+			for sep in ".-:":
 				if sep in domain[1:]:
 					title_collection = title.split(sep)[0].strip()
+					i = 1
+					try:
+						while len(title_collection) < 4 and len(title.split(sep)) > 2:
+							title_collection = ".".join(title.split(sep)[:i]).strip()
+							i+=1
+					except IndexError:
+						pass
+					
 					if title != title_collection:
 						break
 		
@@ -139,6 +174,35 @@ def is_number(s):
         return True
     except:
         return False
+        
+def normalize_id(s):
+			chars = '/"'
+			for c in chars:
+				s = s.replace(c,"")
+			return s.encode('ascii','ignore')
+
+def clean_spaces(s):
+	s = ' '.join(s.splitlines())
+	while "\t" in s:
+		s = s.replace("\t", " ")
+	while "  " in s:
+		s = s.replace("  ", " ")
+	
+	return s.strip()
+	
+def strip_accents(s):
+   return ''.join(c for c in unicodedata.normalize('NFD', s)
+                  if unicodedata.category(c) != 'Mn')
+	
+def normalize_content(s):
+	return s.encode('ascii','ignore')
+
+MONTHS = {"enero" : 1, "febrero" : 2, "marzo" : 3, "abril" : 4, "mayo" : 5, 
+  "junio":6, "julio" : 7, "agosto" : 8, "septiembre" : 9, "octubre" : 10,
+  "noviembre" : 11, "diciembre" : 12}
+
+def month2number(month):
+	return MONTHS[month.lower()]
 
 def test_get_title_collection(verbose = False):
 	tests = {
@@ -166,9 +230,20 @@ def test_get_title_collection(verbose = False):
 		"LOS 4 FANTASTICOS" : [False, "LOS 4 FANTASTICOS"],  
 		"LOS 4 FANTASTICOS VOL. 7 077" : [False, "LOS 4 FANTASTICOS"],  
 		"DR. INUGAMI (MARUO) (EDICION CARTONE)" : [False, "DR. INUGAMI"],  
-		"MALVIVIENDO: EL TEBEO VOL 3" : [False, "MALVIVIENDO: EL TEBEO"],  
+		"MALVIVIENDO: EL TEBEO VOL 3" : [False, "MALVIVIENDO"],  
 		"ASGARD Edición integral" : [False, "ASGARD"],  
+		"20th Century Boys nº 01/22" : [False, "20th Century Boys"],  
+		"S.W. Omnibus: Relatos Jedi nº 02" : [False, "S.W. Omnibus"],  
+		"ALACK SINNER Nº01/8" : [False, "ALACK SINNER"],  
+		"Detective Conan Vol. II Nº 79" : [False, "Detective Conan"],  
 		"BLAKE Y MORTIMER 09. EL SECRETO DEL ESPADÓN (1ª PARTE)  PERSECUCIÓN FANTÁSTICA" : [False, "BLAKE Y MORTIMER"],  
+		u"Robert Kirkman presenta Witch Doctor-A golpe de bisturí nº 01".upper() : [False, "Robert Kirkman presenta Witch Doctor".upper()],  
+		u"S.W. Enciclopedia de personajes".upper() : [False, "S.W. Enciclopedia de personajes".upper()],  
+		u"S.W. Imperio Carmesi. Imperio Perdido".upper() : [False, "S.W. Imperio Carmesi".upper()],  
+		u"D-LIVE !! Nº01".upper() : [False, "D-LIVE !!".upper()],  
+		u"Batman (reedición trimestral) núm. 01".upper() : [False, "BATMAN".upper()],  
+		u"Grandes autores de Batman - Grant Morrison y Dave McKean: Asilo Arkham".upper() : [False, "Grandes autores de Batman".upper()],  
+		u"Backing Boards Comic Concept para comic: Tamaño CURRENT".upper() : [False, "Backing Boards Comic Concept para comic".upper()],  
 		"Mc FARLANE/MAGGIE FIGURA" : [True, "FIGURA Mc FARLANE"],  
 		"NECA/GOLLUM FIGURA 5 CM SCALERS SERIE 1" : [True, "FIGURA NECA"],  
 		"NECA/GOLLUM FIG 5 CM SCALERS SERIE 1" : [True, "FIGURA NECA"],  

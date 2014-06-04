@@ -228,23 +228,27 @@ class CrawlerComics_1(CrawlerComics):
 		
 		return data
 	
-	def init_metas(self):
+	def init_metas(self, previous_metas = False):
 		self.metas = {"distributor" : self.config['distributor'], "category": "COMICS",
-		"manufacturer" : self.config['distributor'], "tax_code" : "IVL", "extra_field_13": 0}
+		"manufacturer" : self.config['distributor'], "tax_code" : "IVL", "extra_field_13": 0 if previous_metas else 2}
 		
 	def get_external(self, extra_field_7):
 		#~ f = open("a.html", "w")
 		#~ f.write(self.download_url_login(self.config['url_external'] % extra_field_7))
 		#~ f.close()
+		
 		tree = etree.fromstring(self.download_url_login(self.config['url_external'] % extra_field_7.replace("-", "")), self.parser)
 		find = etree.XPath('//*[@id="ctl00_MainContent_txtCI"]//text()')
 		try:
 			ref = find(tree)[0]
 			find = etree.XPath('//*[@id="ctl00_MainContent_txtPublicacion"]//text()')
 			date = find(tree)[0]
-			return ref, ref, date
+			find = etree.XPath('//*[@id="ctl00_MainContent_lblDisponible"]//text()')
+			stock_label = find(tree)[0]
+			stock = 0 if "agotado" in stock_label.lower() else 10
+			return ref, ref, date, stock
 		except IndexError:
-			return None, None, None
+			return None, None, None, None
 		#ctl00_MainContent_txtCI
 		
 	def extract_product(self, url, proximamente = False):
@@ -287,7 +291,7 @@ class CrawlerComics_1(CrawlerComics):
 				previous_metas['stock'] = self.metas['stock']
 				previous_metas['price'] = self.metas['price']
 		
-		self.init_metas()
+		self.init_metas(previous_metas)
 		
 		for meta, _xpath in self.xpaths.items():
 			with_label = len(_xpath) > 1
@@ -337,16 +341,17 @@ class CrawlerComics_1(CrawlerComics):
 		if 'alt="proximamente"' in data_url:
 			proximamente = True
 			
-		#date
-		date_created = time.strptime(self.metas['extra_field_1'].strip(), "%d/%m/%Y")
-		self.metas['date_created'] = time.strftime("%m/%d/%Y", date_created)
-		
-		if date_created > now:
-			proximamente = True
 			
 		self.metas['subcategory'] = self.normalize_category(" ".join(self.metas['subcategory'].split(" ")[1:]))
 		
-		(self.metas['id'], self.metas['mfgid'], self.metas['extra_field_1']) = self.get_external(self.metas['extra_field_7'])
+		(self.metas['id'], self.metas['mfgid'], self.metas['extra_field_1'], stock_external) = self.get_external(self.metas['extra_field_7'])
+		
+		for x in xrange(1, 5):
+			if not self.metas['id']:
+				(self.metas['id'], self.metas['mfgid'], self.metas['extra_field_1'], stock_external) = self.get_external("NOR.%s" % url.split("/")[5][x:])
+				
+		
+		
 		if not self.metas['id'] and not proximamente:
 			try:
 				fix = re.findall(".*([0-9]{4}-[0-9]{3}).*?",self.metas['extra_field_7'])[0]
@@ -368,11 +373,46 @@ class CrawlerComics_1(CrawlerComics):
 				self.logger.info("[extract_product] No localizado. Intentando localizar %s" % isbn)
 				#~ print isbn
 
-				(self.metas['id'], self.metas['mfgid'], self.metas['extra_field_1']) = self.get_external(isbn)
+				(self.metas['id'], self.metas['mfgid'], self.metas['extra_field_1'], stock_external) = self.get_external(isbn)
 				sufix += 1
 				if sufix > 9:
 					break
+					
 			
+		
+		if not self.metas['id']: 
+		
+			def normalize_id(s):
+				chars = '/"'
+				for c in chars:
+					s = s.replace(c,"")
+				return s
+			
+			
+			_id = normalize_id(self.normalize_category("".join([w[:2] for w in self.metas['title'].split()])))
+			if proximamente:
+				
+				self.metas['id'] = self.metas['mfgid'] = "NORPROX.%s" % _id
+				
+				comming_date = datetime.now() + timedelta(days = 15)
+				self.metas['extra_field_1'] = comming_date.strftime("%d/%m/%Y")
+				
+			else:
+				self.metas['id'] = self.metas['mfgid'] = "NORNO.%s" % _id
+				self.metas['extra_field_1'] = "1/1/2008"
+				
+			has_comprar = False
+			
+		else:
+			has_comprar = stock_external == 10
+		
+		#date
+		date_created = time.strptime(self.metas['extra_field_1'].strip(), "%d/%m/%Y")
+		self.metas['date_created'] = time.strftime("%m/%d/%Y", date_created)
+		d_created = datetime(date_created.tm_year, date_created.tm_mon, date_created.tm_mday)
+		
+		if d_created > now:
+			proximamente = True
 		
 		#category validations
 		if self.metas['subcategory'] in self.category_alias:
@@ -389,10 +429,7 @@ class CrawlerComics_1(CrawlerComics):
 					return False
 		
 		
-		if not self.metas['id']: 
-			self.metas['id'] = self.metas['mfgid'] = "NORPROX.%s" % self.normalize_category("".join([w[:2] for w in self.metas['title'].split()]))
-			comming_date = datetime.now() + timedelta(days = 15)
-			self.metas['extra_field_1'] = comming_date.strftime("%d/%m/%Y")
+		
 		
 		#~ if not self.metas['id']:
 			#~ raise Exception("No se pudo localizar el id")
@@ -413,11 +450,9 @@ class CrawlerComics_1(CrawlerComics):
 			  title_collection)
 		else:
 			#comming
-			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s@PROXIMAMENTE/%s/%s/%s/%s" % \
+			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
 			  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
-			  self.metas['category'], self.metas['subcategory'], manufacturer, \
-			  self.metas['category'], self.metas['subcategory'], manufacturer, \
-			  title_collection)
+			  self.metas['category'], self.metas['subcategory'], manufacturer)
 			  
 		self.metas['categories'] = "@".join([self.normalize_category(c) for c in self.metas['categories'].split("@")])
 		
@@ -457,7 +492,7 @@ class CrawlerComics_1(CrawlerComics):
 
 
 		#stock & instock_message
-		has_comprar = "ficha_comprar.gif" in data_url
+		#~ has_comprar = "ficha_comprar.gif" in data_url
 		
 		self.metas['stock'] = 40 if proximamente else 10 if has_comprar else 0
 

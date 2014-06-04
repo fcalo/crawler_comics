@@ -7,17 +7,44 @@ import time, logging, logging.handlers
 from datetime import datetime
 from pprint import pprint
 import csv, shutil, re
-from ftplib import FTP_TLS, error_perm
+from ftplib import FTP_TLS, error_perm, FTP
 from binascii import crc32
 from db import DB
-from utils import *
+
+from xlrd import open_workbook
+
 from urllib import quote
 import traceback
+from unidecode import unidecode
+
+from utils import *
 
 
 #hack
-import ssl
+import ssl, socket
 class mFTP_TLS(FTP_TLS):
+	def __init__(self, host='', user='', passwd='', acct='', keyfile=None, certfile=None, timeout=60):
+		FTP_TLS.__init__(self, host, user, passwd, acct, keyfile, certfile, timeout)
+		
+		
+	def connect(self, host='', port=0, timeout=-999):
+		if host != '':
+			self.host = host
+		if port > 0:
+			self.port = port
+		if timeout != -999:
+			self.timeout = timeout
+
+		try: 
+			self.sock = socket.create_connection((self.host, self.port), self.timeout)
+			self.af = self.sock.family
+			self.sock = ssl.wrap_socket(self.sock, self.keyfile, self.certfile, ssl_version=ssl.PROTOCOL_TLSv1)
+			self.file = self.sock.makefile('rb')
+			self.welcome = self.getresp()
+		except Exception as e:
+			print e
+		return self.welcome
+	
 	def storbinary(self, cmd, fp, blocksize=8192, callback=None, rest=None):
 		self.voidcmd('TYPE I')
 		conn = self.transfercmd(cmd, rest)
@@ -97,21 +124,21 @@ class CrawlerComics(object):
 		
 		
 		self.category_alias = {"LIBROS" : {
-		    "ANIMACION" : "ILUSTRACIONES",
-		    "COMIC ARGENTINO" : "COMIC IBEROAMERICANO", 
-		    "COMIC MEXICANO" : "COMIC IBEROAMERICANO", 
-		    "COMIC MANGA" : "MANGA", 
-		    "ILUSTRACION FOTOGRAFICA" : "ILUSTRACIONES", 
-		    "ILUSTRADO" : "ILUSTRACIONES", 
-		    "LIBRO AVENTURA" : "ILUSTRACIONES"} ,
+			"ANIMACION" : "ILUSTRACIONES",
+			"COMIC ARGENTINO" : "COMIC IBEROAMERICANO", 
+			"COMIC MEXICANO" : "COMIC IBEROAMERICANO", 
+			"COMIC MANGA" : "MANGA", 
+			"ILUSTRACION FOTOGRAFICA" : "ILUSTRACIONES", 
+			"ILUSTRADO" : "ILUSTRACIONES", 
+			"LIBRO AVENTURA" : "ILUSTRACIONES"} ,
 		  "COMICS": {
-		    "COMIC ARGENTINO" : "COMIC IBEROAMERICANO",
-		    "COMIC MEXICANO" : "COMIC MEXICANO",
-		    "COMIC MANGA" : "MANGA",
-		    "FANZINES" : "REVISTA DE COMICS",
-		    "ILUSTRACION FOTOGRAFICA" : "ILUSTRACIONES",
-		    "ILUSTRADO" : "ILUSTRACIONES",
-		    "MANHWA" : "MANGA", 
+			"COMIC ARGENTINO" : "COMIC IBEROAMERICANO",
+			"COMIC MEXICANO" : "COMIC MEXICANO",
+			"COMIC MANGA" : "MANGA",
+			"FANZINES" : "REVISTA DE COMICS",
+			"ILUSTRACION FOTOGRAFICA" : "ILUSTRACIONES",
+			"ILUSTRADO" : "ILUSTRACIONES",
+			"MANHWA" : "MANGA", 
 			"TEMATICA GAY" : "ADULTO EROTICO",
 			"TERROR" : "COMIC",
 			"VARIOS-OTROS" : "REVISTA DE COMICS"},
@@ -149,17 +176,23 @@ class CrawlerComics(object):
 		self.filename_csv = os.path.join(os.path.dirname(__file__), "csv/%s" % self.config['csv_filename'] % self.id_task)
 		
 		self.print_line(self.config["csv_header"], True)
+		
+		self.external_stock = []
 			
-			
+	
 	def normalize_category(self, cat):
 		replace_chars = {u"¿" : "" , u"?" : "" , u"!" : "" , u"¡" : "", 
 		  u"%" : "", u"#" : "" , u"@" : "" , u"Á" : "A", u"É" : "E" , 
-		  u"Í" : "I" , u"Ó" : "O" , u"Ú" : "U", ")" : "", "(" : ""}
+		  u"Í" : "I" , u"Ó" : "O" , u"Ú" : "U", ")" : "", "(" : "",
+		  u"á": "a", u"é": "e", u"í" : "i", u"ó" : "o" , u"ú": "u" 
+		  ,"'" : "", u"´" : ""}
+		
+		#~ cat = unidecode(cat)
 		
 		for c1, c2 in replace_chars.items():
 			cat = cat.replace(c1, c2)
 			
-		return cat.upper()
+		return strip_accents(cat).upper()
 	
 	def normalize_path(self, path):
 		"""prepare a valid path to ftp"""
@@ -186,8 +219,8 @@ class CrawlerComics(object):
 		return "%s%s" %(self.config['url_images'], path) if with_url else path
 	
 			
-	def init_metas(self):
-		self.metas = {"distributor" : self.config['distributor'], "extra_field_13": 0}
+	def init_metas(self, previous_metas = False):
+		self.metas = {"distributor" : self.config['distributor'], "extra_field_13": 0 if previous_metas else 2}
 
 	
 	def extract(self, xpath):
@@ -292,18 +325,36 @@ class CrawlerComics(object):
 		path = os.path.join( os.path.dirname(__file__), "imgs/%s" % self.normalize_path(filename.encode("utf-8")))
 		max_border = 100
 		
-		
 		url = quote(url.encode("utf-8"),":/")	
-		if url.endswith("No_Disponible.gif"):
+		
+		no_image =["dummy_libro_tam_2.gif", "No_Disponible.gif"]
+		
+		if any(url.endswith(i) for i in no_image):
 			#no image
 			shutil.copy(os.path.join(os.path.dirname(__file__), \
 			  "imgs/SuperComicsImagenNoDisponible.jpg"), \
 			  os.path.join(os.path.dirname(__file__), path))
 		else:
-			r = urllib2.urlopen(url)
-			f = open(path, "w")
-			f.write(r.read())
-			f.close()
+			downloaded = False
+			tries = 0
+			while not downloaded:
+				try:
+					tries += 1
+					r = urllib2.urlopen(url)
+					f = open(path, "w")
+					f.write(r.read())
+					f.close()
+					#~ resp = urllib2.urlopen(req)
+					downloaded = True
+				except urllib2.URLError as e:
+					self.logger.info("[download_url] Error descargando %s - %s" % (url, str(e)))
+					
+					if tries > 5:
+						raise
+					else:
+						self.logger.info("[download_url] Reintentando ...")
+					time.sleep(tries)
+			
 			
 		try:
 			im = Image.open(path)
@@ -358,13 +409,14 @@ class CrawlerComics(object):
 		r_size = (109, 146) if thumbnail else (263, 400)
 		
 		if im.size[0] > r_size[0] or im.size[1] > r_size[1]:
-			im.resize(r_size, Image.ANTIALIAS)
+			im = im.resize(r_size, Image.ANTIALIAS)
 			im.save(path, "JPEG", quality=100)
 		
 		return True
 
 			
 	def download_url(self, url):
+		
 		
 		cj = cookielib.CookieJar()
 		opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
@@ -381,11 +433,10 @@ class CrawlerComics(object):
 		
 		
 		post = {'URLx':quote(url.encode("utf-8"),":/").split(self.config['domain'])[1],
-		        'login':self.config['login'],
-		        'Password':self.config['password'],
-		        'Ok': 'OK',
-		        'modo' : 'Cercador'}
-
+				'login':self.config['login'],
+				'Password':self.config['password'],
+				'Ok': 'OK',
+				'modo' : 'Cercador'}
 
 		req = urllib2.Request(self.config['url_login'], urllib.urlencode(post))
 		
@@ -410,8 +461,33 @@ class CrawlerComics(object):
 		data = resp.read()
 		
 		return data
-        
-        
+
+	def load_external_stock(self):
+		
+		filename_xls = "temp.xls"
+		f = open(filename_xls, "w")
+		self.logger.info("[load_external_stock] descargando %s" % self.config['stock_external_xml'])
+		f_web = urllib2.urlopen(self.config['stock_external_xml'])
+		f.write(f_web.read())
+		f.close()
+		f_web.close()
+			
+		book = open_workbook(filename = filename_xls)
+			
+		sh = book.sheet_by_index(0)
+		row_pos = 1
+		try:
+			while sh.cell_value(rowx=row_pos, colx=1):
+				self.external_stock.append(sh.cell_value(rowx=row_pos, colx=1))
+				row_pos += 1
+		except IndexError:
+			pass
+			
+		
+	def is_in_external_stock(self, _id):
+		if not self.external_stock:
+			self.load_external_stock()
+		return _id in self.external_stock
 	
 	def extract_product(self, url, category, subcategory):
 		"""extract metadata from product page"""
@@ -453,7 +529,7 @@ class CrawlerComics(object):
 				previous_metas['price'] = self.metas['price']
 				previous_metas['thumbnail'] = self.metas['thumbnail']
 		
-		self.init_metas()
+		self.init_metas(previous_metas)
 		self.metas['category'] = category.upper()
 		self.metas['subcategory'] = subcategory.upper()
 		
@@ -583,11 +659,9 @@ class CrawlerComics(object):
 			  title_collection)
 		else:
 			#comming
-			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s@PROXIMAMENTE/%s/%s/%s/%s" % \
+			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
 			  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
-			  self.metas['category'], self.metas['subcategory'], manufacturer, \
-			  self.metas['category'], self.metas['subcategory'], manufacturer, \
-			  title_collection)
+			  self.metas['category'], self.metas['subcategory'], manufacturer)
 		
 		self.metas['homespecial'] = 1 if abs((now - d_created).days) <10 else 0
 		
@@ -650,6 +724,9 @@ class CrawlerComics(object):
 		if d_created > now: 
 			self.metas['stock'] = 40
 			
+		if is_merchandising and not self.is_in_external_stock(self.metas['id']):
+			self.metas['stock'] = 0
+			
 		if previous_metas:
 			#has been seen already
 			if previous_metas['stock'] == self.metas['stock'] and \
@@ -709,11 +786,13 @@ class CrawlerComics(object):
 		tries = 0
 		while not connected:
 			try:
-				ftps = mFTP_TLS(self.config['ftp_host'], timeout = 60)
+				ftps = mFTP_TLS()
+				ftps.connect(self.config['ftp_host'], port=990, timeout = 60)
 				ftps.login(self.config['ftp_user'], self.config['ftp_pass'])
 				ftps.prot_p()
 				connected = True
 			except:
+				raise
 				tries +=1
 				if tries > 5:
 					raise
@@ -770,7 +849,8 @@ class CrawlerComics(object):
 					try:
 						ftps.storbinary('STOR ' + filename, f, 1024)
 						uploaded = True
-					except ssl.SSLError:
+					except:
+						self.logger.warning("[upload_images] reintando subida %s" % local_filename)
 						tries +=1
 						if tries > 5:
 							raise
@@ -882,6 +962,10 @@ class CrawlerComics(object):
 			self.metas['manufacturer'] = self.metas['categories'].split("/")[-2]
 			
 			title_collection = get_title_collection(self.metas['title'], self.metas['category'], self.metas['manufacturer'])
+			
+			if type(title_collection) == type(u""):
+				title_collection = title_collection.encode("utf-8")
+			
 			if title_collection != self.metas['title']:
 				number_collection = get_number_collection(self.metas['title'], self.metas['id'], self.metas['category'])
 				
@@ -909,6 +993,11 @@ class CrawlerComics(object):
 			self.metas['manufacturer'] = self.metas['categories'].split("/")[-2]
 			
 			title_collection = get_title_collection(self.metas['title'], self.metas['category'], self.metas['manufacturer'])
+			
+			if type(title_collection) == type(u""):
+				title_collection = title_collection.encode("utf-8")
+				
+			
 			if title_collection != self.metas['title']:
 				number_collection = get_number_collection(self.metas['title'], self.metas['id'], self.metas['category'], )
 				
@@ -971,8 +1060,8 @@ if __name__ == '__main__':
 				#~ crawl.extract_product(url, "a", "b")
 				
 
-				crawl.extract_product(url, u"DVD - BLU·RAY", u"ANIMACIÓN")
-				#~ crawl.extract_product(url, "MERCHANDISING", "b")
+				#~ crawl.extract_product(url, u"DVD - BLU·RAY", u"ANIMACIÓN")
+				crawl.extract_product(url, "MERCHANDISING", "b")
 				crawl.generate_csv()
 			
 				crawl.db.finish_task(crawl.id_task)

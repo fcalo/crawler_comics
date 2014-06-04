@@ -13,8 +13,30 @@ import traceback
 
 
 #hack
-import ssl
+import ssl, socket
 class mFTP_TLS(FTP_TLS):
+	def __init__(self, host='', user='', passwd='', acct='', keyfile=None, certfile=None, timeout=60):
+		FTP_TLS.__init__(self, host, user, passwd, acct, keyfile, certfile, timeout)
+		
+		
+	def connect(self, host='', port=0, timeout=-999):
+		if host != '':
+			self.host = host
+		if port > 0:
+			self.port = port
+		if timeout != -999:
+			self.timeout = timeout
+
+		try: 
+			self.sock = socket.create_connection((self.host, self.port), self.timeout)
+			self.af = self.sock.family
+			self.sock = ssl.wrap_socket(self.sock, self.keyfile, self.certfile, ssl_version=ssl.PROTOCOL_TLSv1)
+			self.file = self.sock.makefile('rb')
+			self.welcome = self.getresp()
+		except Exception as e:
+			print e
+		return self.welcome
+	
 	def storbinary(self, cmd, fp, blocksize=8192, callback=None, rest=None):
 		self.voidcmd('TYPE I')
 		conn = self.transfercmd(cmd, rest)
@@ -32,7 +54,6 @@ class mFTP_TLS(FTP_TLS):
 			conn.close()
 		return self.voidresp()
 
-
 class Updater(object):
 	def __init__(self, verbose = False, id_task = None, supplier = None):
 		
@@ -44,8 +65,6 @@ class Updater(object):
 		self.config = {}
 		config_file = os.path.join(os.path.dirname(__file__), "updater.conf")
 		execfile(config_file, self.config)
-		
-	
 		
 		#logger
 		self.logger = logging.getLogger('UPDATER')
@@ -96,7 +115,8 @@ class Updater(object):
 		self.logger.info("[download_stock_master] Descargando...")
 		while not connected:
 			try:
-				ftps = mFTP_TLS(self.config['ftp_host'], timeout = 60)
+				ftps = mFTP_TLS()
+				ftps.connect(self.config['ftp_host'], port=990, timeout = 60)
 				ftps.login(self.config['ftp_user'], self.config['ftp_pass'])
 				ftps.prot_p()
 				connected = True
@@ -146,7 +166,8 @@ class Updater(object):
 						continue
 					ids.append(data['id'])
 					# stock checks
-					if last_task > data['last_seen_task']:
+					print data['id'], last_task, data['last_seen_task']
+					if last_task > data['last_seen_task'] and int(data_master_stock['stock']) > 9:
 						data_master_stock['catalogid'] = "-%s" % data_master_stock['catalogid']
 					
 					if data_master_stock['stock'] in ['0', '10', '40']:
@@ -178,8 +199,9 @@ class Updater(object):
 						else "Añadir a Lista de Espera" if data['stock'] == "0" \
 						else "En Stock - 3/5 Días" if data['stock'] == "10" \
 						else "En Stock - 48 Horas" 
-					if not 'categories' in data_master_stock:
-						data_master_stock['categories'] = ""
+						
+					if not 'categories' in data:
+						data['categories'] = ""
 					self.print_line(self.get_metas_orderer(data))
 			
 			

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from flask import Flask, render_template, request, redirect, url_for, make_response, flash
 from flask.ext.sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import OperationalError
 from database import db_session
 from models import Task, TypeTask
 import time
@@ -21,7 +22,7 @@ def tasks():
 	for i in xrange(0,5):
 		try:
 			return render_template('tasks.html', tasks = Task.query.order_by("id_task DESC").limit(20).all(), type_tasks = TypeTask.query.order_by("id_type_task").all())
-		except sqlalchemy.exc.OperationalError:
+		except OperationalError:
 			#retry
 			pass
 			time.sleep(i)

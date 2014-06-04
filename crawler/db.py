@@ -40,6 +40,8 @@ class DB(object):
 		self.cur.execute('SET CHARACTER SET utf8;')
 		self.cur.execute('SET character_set_connection=utf8;')
 		
+		
+		
 	def init_model(self):
 		
 		self.logger.info("[DB.init_model]")
@@ -92,6 +94,7 @@ class DB(object):
 			  u"', '".join([self.escape(metas[k].decode("utf-8")) if isinstance(metas[k], basestring) else self.escape(str(metas[k])) for k in self.config['csv_header'] if k in metas]))
 			  
 		except Exception as e:
+			
 			try:
 				print sql
 			except:
@@ -115,9 +118,12 @@ class DB(object):
 			sql_mod = sql.replace(", last_seen_task,", ", last_seen_task, last_mod_task,")
 			sql_mod = sql_mod.replace("NOW(), %d," % id_task, "NOW(), %d, %d," % (id_task, id_task)) 
 			self.cur.execute(sql_mod)
-		except:
-			print sql
-			raise
+		except Exception as e:
+			try:
+				print sql
+			except:
+				pass
+			raise e
 			
 		return self.con.commit()
 		  
@@ -148,6 +154,7 @@ class DB(object):
 		metas = None
 		try:
 			sql = "SELECT * FROM %s WHERE url = '%s'" % (self.table_name, self.escape(url))
+			
 			self.cur.execute(sql)
 		except:
 			print sql

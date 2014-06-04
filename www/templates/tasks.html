@@ -65,7 +65,9 @@
 					<td>{{ task['id_task'] }}</td><td>{{ task['start_date'] }}</td>
 					<td>{{type_tasks[task['type_task']]}}</td>
 					<td>{{"Actualizaciones" if task['mode'] == 1 else "Completo"}}</td>
-					<td>{{"En espera" if task['state'] == 0 else "Procesando" if task['state'] == 1 else "Con errores" if task['state'] == 2 else "Finalizada"}}</td>
+					<td style="color:{{'#31708f' if task['state'] == 0 else '#8a6d3b' if task['state'] == 1 else '#a94442' if task['state'] == 2 else '#3c763d'}}">
+						{{"En espera" if task['state'] == 0 else "Procesando" if task['state'] == 1 else "Con errores" if task['state'] == 2 else "Finalizada"}}
+					</td>
 					<td>
 						{%- if task['state'] > 0 %}
 							<a href="/log/{{ task['id_task'] }}" target="_blank" ><span class="glyphicon glyphicon-list-alt"></span></a></td>
