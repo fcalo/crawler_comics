@@ -202,7 +202,7 @@ class CrawlerComics(object):
 			path = path.split(self.config['url_images'])[1]
 		
 		replace_chars = {u"Ñ" : "N", "-" : "", "," : "", "." : "", ":" : "",
-		"*" : "", "?" : "", "<" : "", ">" : "", "|" : "", u"·" : "" }
+		"*" : "", "?" : "", "<" : "", ">" : "", "|" : "", u"·" : "", " ":"" }
 		
 		for c1, c2 in replace_chars.items():
 			try:
@@ -410,7 +410,10 @@ class CrawlerComics(object):
 		
 		if im.size[0] > r_size[0] or im.size[1] > r_size[1]:
 			im = im.resize(r_size, Image.ANTIALIAS)
-			im.save(path, "JPEG", quality=100)
+			try:
+				im.save(path, "JPEG", quality=100)
+			except IOError:
+				im.convert('RGB').save(path, "JPEG", quality=100)
 		
 		return True
 
@@ -589,6 +592,8 @@ class CrawlerComics(object):
 							ok = False
 							for label in _xpath[1].split("|"):
 								if label in extract.upper():
+									if meta == "label_stock" and "EAN" in extract.upper():
+										continue
 									ok = True
 									break
 						else:
@@ -652,11 +657,20 @@ class CrawlerComics(object):
 		#~ if now > d_created: 
 		if not u"próxima" in l_stock: 
 			#CATEGORIA_PRINCIPAL@CATEGORIA_PRINCIPAL/SUBCATEGORIA@CATEGORIA_PRINCIPAL/SUBCATEGORIA/EDITORIAL@CATEGORIA_PRINCIPAL/SUBCATEGORIA/EDITORIAL/TITULO -(menos ó sin) NUMERO COLECCION
-			self.metas['categories'] = "%s@%s/%s@%s/%s/%s@%s/%s/%s/%s" % \
-			  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
-			  self.metas['category'], self.metas['subcategory'], manufacturer, \
-			  self.metas['category'], self.metas['subcategory'], manufacturer, \
-			  title_collection)
+			
+			if is_merchandising:
+				level_2 = title_collection.replace(manufacturer, "").strip()
+				self.metas['categories'] = "%s@%s/%s@%s/%s/%s@%s/%s/%s/%s" % \
+				  (self.metas['category'], self.metas['category'], level_2, \
+				  self.metas['category'], level_2, self.metas['subcategory'], \
+				  self.metas['category'], level_2, self.metas['subcategory'], manufacturer)
+
+			else:
+				self.metas['categories'] = "%s@%s/%s@%s/%s/%s@%s/%s/%s/%s" % \
+				  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
+				  self.metas['category'], self.metas['subcategory'], manufacturer, \
+				  self.metas['category'], self.metas['subcategory'], manufacturer, \
+				  title_collection)
 		else:
 			#comming
 			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
@@ -826,8 +840,13 @@ class CrawlerComics(object):
 								if tries > 5:
 									raise
 								time.sleep(tries)
-						
-						ftps.cwd(path)
+						try:
+							ftps.cwd(path)
+						except error_perm as e:
+							if not "550" in str(e):
+								raise
+							else:
+								pass
 				
 				#check if exists
 				try:
@@ -978,7 +997,7 @@ class CrawlerComics(object):
 				
 				#accesories
 				if accesories:
-					self.metas['accesories'] = ",".join([a for a in accesories if a != url_data['id']])
+					self.metas['accessories'] = ",".join([a for a in accesories if a != url_data['id']])
 					
 			
 			self.print_line(self.get_metas_orderer())
@@ -1010,7 +1029,7 @@ class CrawlerComics(object):
 				
 				#accesories
 				if accesories:
-					self.metas['accesories'] = ",".join(accesories)
+					self.metas['accessories'] = ",".join(accesories)
 					
 			#removed
 			self.metas['extra_field_13'] = 1
@@ -1060,8 +1079,8 @@ if __name__ == '__main__':
 				#~ crawl.extract_product(url, "a", "b")
 				
 
-				#~ crawl.extract_product(url, u"DVD - BLU·RAY", u"ANIMACIÓN")
-				crawl.extract_product(url, "MERCHANDISING", "b")
+				crawl.extract_product(url, u"COMICS", u"COMIC ESPAÑOL")
+				#~ crawl.extract_product(url, "MERCHANDISING", "b")
 				crawl.generate_csv()
 			
 				crawl.db.finish_task(crawl.id_task)

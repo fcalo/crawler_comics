@@ -361,13 +361,21 @@ class CrawlerComics_3(CrawlerComics):
 		manufacturer = self.metas['manufacturer'] if self.metas['manufacturer'] else "VARIOS"
 		
 		if not proximamente: 
-			
-			#CATEGORIA_PRINCIPAL@CATEGORIA_PRINCIPAL/SUBCATEGORIA@CATEGORIA_PRINCIPAL/SUBCATEGORIA/EDITORIAL@CATEGORIA_PRINCIPAL/SUBCATEGORIA/EDITORIAL/TITULO -(menos ó sin) NUMERO COLECCION
-			self.metas['categories'] = "%s@%s/%s@%s/%s/%s@%s/%s/%s/%s" % \
-			  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
-			  self.metas['category'], self.metas['subcategory'], manufacturer, \
-			  self.metas['category'], self.metas['subcategory'], manufacturer, \
-			  title_collection)
+		
+			if "MERCHANDISING" in self.metas['category']:
+				level_2 = title_collection.replace(manufacturer, "").strip()
+				self.metas['categories'] = "%s@%s/%s@%s/%s/%s@%s/%s/%s/%s" % \
+				  (self.metas['category'], self.metas['category'], level_2, \
+				  self.metas['category'], level_2, self.metas['subcategory'], \
+				  self.metas['category'], level_2, self.metas['subcategory'], manufacturer)
+
+			else:
+				#CATEGORIA_PRINCIPAL@CATEGORIA_PRINCIPAL/SUBCATEGORIA@CATEGORIA_PRINCIPAL/SUBCATEGORIA/EDITORIAL@CATEGORIA_PRINCIPAL/SUBCATEGORIA/EDITORIAL/TITULO -(menos ó sin) NUMERO COLECCION
+				self.metas['categories'] = "%s@%s/%s@%s/%s/%s@%s/%s/%s/%s" % \
+				  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
+				  self.metas['category'], self.metas['subcategory'], manufacturer, \
+				  self.metas['category'], self.metas['subcategory'], manufacturer, \
+				  title_collection)
 		else:
 			#comming
 			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \

@@ -250,6 +250,25 @@ class DB(object):
 		
 		return self.con.commit()
 		
+	def init_newsletter(self, id_newsletter):
+		""" change state to running (1) to newsletter """
+		
+		self.logger.info("[DB.init_newsletter] %s" % id_newsletter)
+		
+		self.cur.execute("UPDATE newsletter set state=1 WHERE id_newsletter = '%s'" % (id_newsletter))
+		
+		return self.con.commit()
+		
+		
+	def finish_newsletter(self, id_newsletter, with_errors = False):
+		""" change state to finised with errors (2) or finised without errors to task """
+		
+		self.logger.info("[DB.finish_newsletter] %s con errores : %s" % (id_newsletter , with_errors))
+		
+		self.cur.execute("UPDATE newsletter set state=%d WHERE id_newsletter = '%s'" % (2 if with_errors else 3, id_newsletter))
+		
+		return self.con.commit()
+		
 		
 	def get_waiting_task(self):
 		""" search for the task in state waiting """
@@ -258,6 +277,16 @@ class DB(object):
 		  INNER JOIN type_task tt ON tt.id_type_task = t.type_task \
 		  WHERE state = 0 AND NOT EXISTS (SELECT 1 FROM task \
 		  WHERE type_task = t.type_task AND state = 1)")
+		try:
+			return self.cur.fetchall()[0]
+		except IndexError:
+			return None
+			
+	def get_waiting_newsletter(self):
+		""" search for the newsletter in state waiting """
+		
+		self.cur.execute("SELECT id_newsletter  FROM  newsletter n \
+		  WHERE state = 0 ORDER BY id_newsletter limit 1")
 		try:
 			return self.cur.fetchall()[0]
 		except IndexError:
@@ -283,7 +312,35 @@ class DB(object):
 		self.cur.execute("SELECT name FROM supplier where `table`='%s'" % supplier)
 		
 		return self.cur.fetchall()[0]['name']
+	
+	
+	def get_info_newsletter(self, id_newsletter):
+		""" return all data from one supplier table """
 		
+		self.cur.execute("SELECT * FROM newsletter where id_newsletter='%s'" % id_newsletter)
+		try:
+			data_newsletter = self.cur.fetchall()[0]
+		except IndexError:
+			data_newsletter = None
+		
+		if data_newsletter:
+			
+			self.cur.execute("SELECT category FROM newsletter_category where id_newsletter='%s'" % id_newsletter)
+		
+			data_newsletter['categories'] = []
+			for cat in self.cur.fetchall():
+				data_newsletter['categories'].append(cat['category'])
+				
+		
+		#~ return {d:data_newsletter[d].encode("utf-8") 
+		  #~ if isinstance(data_newsletter[d], basestring) else data_newsletter[d]
+		  #~ for d in data_newsletter}
+		  
+		return data_newsletter
+		
+	def add_category(self, category):
+		
+		return self.cur.execute("INSERT IGNORE INTO category VALUES ( '%s');" % category)
 	
 		
 		

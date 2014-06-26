@@ -4,7 +4,6 @@ import sys, os, urllib2, urllib, cookielib, re, gzip, StringIO
 from lxml import etree
 from urllib import quote
 from datetime import datetime, timedelta
-from datetime import datetime, timedelta
 import time, logging, logging.handlers
 from pprint import pprint
 from binascii import crc32
@@ -57,7 +56,8 @@ class CrawlerComics_1(CrawlerComics):
 			"price2" : ['//*[@id="basic_info"]/h3[6]/span//text()'],
 			"content" : ['//*[@id="SUB_centro_IZ"]//text()']
 			}
-		self.category_alias = {"EUROPEO" : "COMIC EUROPEO", "USA" : "COMIC USA"}
+		self.category_alias = {"EUROPEO" : "COMIC EUROPEO", "USA" : "COMIC USA",
+		"COMIC AMERCIANO": "COMIC USA"}
 		self.category_ban = {}
 		
 		self.db = DB(self.logger, config_file)
@@ -230,7 +230,7 @@ class CrawlerComics_1(CrawlerComics):
 	
 	def init_metas(self, previous_metas = False):
 		self.metas = {"distributor" : self.config['distributor'], "category": "COMICS",
-		"manufacturer" : self.config['distributor'], "tax_code" : "IVL", "extra_field_13": 0 if previous_metas else 2}
+		"manufacturer" : self.config['manufacturer'], "tax_code" : "IVL", "extra_field_13": 0 if previous_metas else 2}
 		
 	def get_external(self, extra_field_7):
 		#~ f = open("a.html", "w")

@@ -55,7 +55,7 @@ def get_title_collection(title, category, manufacturer):
 		
 		#~ print "\t\t-"
 		#try with separator chars
-		exceptions = ["-x"]
+		exceptions = ["-x", "-X"]
 		
 		
 		first_word = re.findall(r"[\w']+", title)[0]
@@ -68,7 +68,6 @@ def get_title_collection(title, category, manufacturer):
 		  
 		#~ print title.split()[0].lower()
 		#~ print "\t", title, ":::", domain
-		 
 		 
 		
 		if not any(e in domain for e in exceptions):
@@ -105,6 +104,11 @@ def get_title_collection(title, category, manufacturer):
 					title_collection = re.findall("(.*?) [0-9]{3}[^0-9]?.*?",title)[0]
 				except IndexError:
 					pass
+		
+		
+		gram_exceptions = ["4 fantasticos"]
+		if any(title_prenumber.replace(title_collection, "").strip().lower().startswith(ex) for ex in gram_exceptions):
+			title_collection = title_prenumber
 					
 		try:
 			last_word = re.findall(r"[\w']+", title_collection)[-1]
@@ -229,6 +233,7 @@ def test_get_title_collection(verbose = False):
 		"LOS VENGADORES VOL 4 40" : [False, "LOS VENGADORES"],  
 		"LOS 4 FANTASTICOS" : [False, "LOS 4 FANTASTICOS"],  
 		"LOS 4 FANTASTICOS VOL. 7 077" : [False, "LOS 4 FANTASTICOS"],  
+		"PATRULLA-X VS 4 FANTASTICOS & VENGADORES  (MARVEL GOLD)" : [False, "PATRULLA-X VS 4 FANTASTICOS & VENGADORES"],  
 		"DR. INUGAMI (MARUO) (EDICION CARTONE)" : [False, "DR. INUGAMI"],  
 		"MALVIVIENDO: EL TEBEO VOL 3" : [False, "MALVIVIENDO"],  
 		"ASGARD Edición integral" : [False, "ASGARD"],  

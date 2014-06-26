@@ -4,7 +4,8 @@ from flask import Flask, render_template, request, redirect, url_for, make_respo
 from flask.ext.sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import OperationalError
 from database import db_session
-from models import Task, TypeTask
+from models import Task, TypeTask, Newsletter, Category, NewsletterCategory
+from datetime import datetime
 import time
 import os, re
 
@@ -37,14 +38,16 @@ def remove(id_task):
 
 
 def get_filename(pattern, id_task):
-	possible = re.findall(".*\[(.*)\].*", pattern)[0].split("|")
-	fix = "{type}".join(re.findall("(.*)\[.*\](.*)", pattern)[0])
-	
-	for _type in possible:
-		fn = fix.replace("{type}", _type) % id_task
-		print fn
-		if os.path.exists(fn):
-			return fn
+	try:
+		possible = re.findall(".*\[(.*)\].*", pattern)[0].split("|")
+		fix = "{type}".join(re.findall("(.*)\[.*\](.*)", pattern)[0])
+		
+		for _type in possible:
+			fn = fix.replace("{type}", _type) % id_task
+			if os.path.exists(fn):
+				return fn
+	except:
+		return pattern % id_task
 	
 	
 	
@@ -77,6 +80,81 @@ def csv(id_task):
 		flash(u"Aún no se ha creado el fichero csv")
 		return redirect(url_for('tasks'))
 	
+#newsletter
+@app.route('/newsletter', methods = ["GET", "POST"])
+def newsletter():
+    if request.method == "POST":
+		
+		newsletter = Newsletter(header_text = request.form['header_text'],
+          banner_1_active = 'banner_1_active' in request.form, 
+          banner_1_url = request.form['banner_1_url'], 
+          banner_1_image = request.form['banner_1_image'], 
+          banner_2_active = 'banner_2_active' in request.form, 
+          banner_2_url = request.form['banner_2_url'], 
+          banner_2_image = request.form['banner_2_image'], 
+          banner_3_active = 'banner_3_active' in request.form, 
+          banner_3_url = request.form['banner_3_url'], 
+          banner_3_image = request.form['banner_3_image'], 
+          banner_4_active = 'banner_4_active' in request.form, 
+          banner_4_url = request.form['banner_4_url'], 
+          banner_4_image = request.form['banner_4_image'], 
+          type_link = request.form['type_link'], 
+          id_affil = request.form['id_affil'], 
+          template = request.form['template'], 
+          date_from = datetime.strptime(request.form['date_from'].strip(), "%d/%m/%Y") if "/" in request.form['date_from'] else request.form['date_from'], 
+          date_to = datetime.strptime(request.form['date_to'].strip(), "%d/%m/%Y") if "/" in request.form['date_to'] else request.form['date_to'])
+		db_session.add(newsletter)
+		db_session.flush()
+		
+		for cat in request.form['categories'].split(","):
+			n_c = NewsletterCategory(id_newsletter = newsletter.id_newsletter, category = cat.strip())
+			db_session.add(n_c)
+			db_session.flush()
+		
+    for i in xrange(0,5):
+        try:
+			return render_template('newsletter.html', newsletters = Newsletter.query.order_by("id_newsletter DESC").limit(50).all(), 
+			  categories = [unicode(str(c),"latin-1") for c in Category.query.order_by("category").all()])
+        except OperationalError:
+            #retry
+            pass
+            time.sleep(i)
+    raise Exception("Mysql has gone away")
+    
+@app.route('/remove_news/<id_newsletter>')
+def remove_news(id_newsletter):
+	db_session.query(Newsletter).filter(Newsletter.id_newsletter == id_newsletter).delete()
+	
+	return redirect(url_for('newsletter'))
+
+@app.route('/log_news/<id_newsletter>')
+def log_news(id_newsletter):
+	
+	filename = get_filename(app.config['FILE_LOG_NEWS'], id_newsletter)
+	
+	if filename and os.path.exists(filename):
+		response = make_response(open(filename).read())
+		response.headers["Content-type"] = "text/plain"
+		return response
+	else:
+		flash(u"Aún no se ha creado el fichero de Log")
+		return redirect(url_for('newsletter'))
+
+@app.route('/html/<id_newsletter>')
+def html(id_newsletter):
+	filename = get_filename(app.config['FILE_HTML'], id_newsletter)
+	
+	print filename
+	
+	if filename and os.path.exists(filename):
+		response = make_response(open(filename).read())
+		response.headers["Content-type"] = "application/force-download"
+		response.headers["Content-Disposition"] = 'attachment; filename="%s"' % filename.split("/")[-1]
+		return response
+	else:
+		flash(u"Aún no se ha creado el fichero")
+		return redirect(url_for('newsletter'))
+
 
 app.debug = True
 app.config.from_object("settings.Config")

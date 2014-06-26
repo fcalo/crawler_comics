@@ -14,6 +14,7 @@ docs/
 */env/*
 *.log*
 run_test
+newsletter/output_html
 
 # C extensions
 *.so

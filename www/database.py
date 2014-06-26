@@ -21,7 +21,7 @@ class MyListener(sqlalchemy.interfaces.PoolListener):
            self.retried = True
            raise sqlalchemy.exc.DisconnectionError
 
-engine = create_engine(c.DB_STRING, convert_unicode=True, listeners=[MyListener()])
+engine = create_engine(c.DB_STRING, encoding='utf8', listeners=[MyListener()])
 db_session = scoped_session(sessionmaker(autocommit=True,
                                          autoflush=True,
                                          bind=engine))

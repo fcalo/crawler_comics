@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <title>Newsletter SuperComics</title>
+
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Bootstrap -->
+    <!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+
+	<!-- Optional theme -->
+	<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+
+	<link rel="stylesheet" href="/static/datepicker3.css">
+	<link rel="stylesheet" href="/static/bootstrap-treeview.min.css">
+	<link rel="stylesheet" href="/static/newsletter.css">
+	<!-- Latest compiled and minified JavaScript -->
+  </head>
+  <body>
+	<div id="navbar" class="navbar navbar-default" role="navigation">
+		<div class="container" id="container">
+			<div class="navbar-header">
+			  <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+				<span class="sr-only">Toggle navigation</span>
+				<span class="icon-bar"></span>
+				<span class="icon-bar"></span>
+				<span class="icon-bar"></span>
+			  </button>
+			  <a class="navbar-brand" href="/newsletter">Newsletter SuperComics</a>
+			</div>
+			<div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+			  <ul class="nav navbar-nav">
+				
+			  </ul>
+			  <ul class="nav navbar-nav navbar-right">
+				 <li><a href="/newsletter"><span class="glyphicon glyphicon-refresh"></span> Actualizar</a></li>
+				<li><a href="#" data-toggle="modal" data-target="#nuevo_news"><span class="glyphicon glyphicon-plus"></span> Nueva Newsletter</a></li>
+			  </ul>
+			</div>
+        </div>
+        
+	</div>
+	<div class="container">
+		
+		{% with messages = get_flashed_messages() %}
+		  {% if messages %}
+			<ul class=flashes>
+			{% for message in messages %}
+			  <div class="alert alert-danger">{{ message }}</div>
+			{% endfor %}
+			</ul>
+		  {% endif %}
+		{% endwith %}
+			
+		<div class="panel panel-default">
+		  <!-- Default panel contents -->
+		  <div class="panel-heading">Newsletters</div>
+
+		  <!-- Table -->
+		  <table class="table">
+			<tr>
+				<th>#</th><th>Plantilla</th><th>Enlaces</th><th>Desde</th><th>Hasta</th><th>Estado</th><th>Log</th><th>HTML</th><th>Borrar</th>
+			</tr>
+			{%- for newsletter in newsletters %}
+				<tr>
+					<td>{{ newsletter['id_newsletter'] }}</td>
+					<td>{{ "Normal" if newsletter['type_link'] == "N" else "Afiliados" }}</td>
+					<td>{{ "Normal" if newsletter['template'] == "N" else "Reservas" }}</td>
+					<td>{{ newsletter['date_from'] if newsletter['date_from'] else ""}}</td>
+					<td>{{ newsletter['date_to'] if newsletter['date_to'] else ""}}</td>
+					<td style="color:{{'#31708f' if newsletter['state'] == 0 else '#8a6d3b' if newsletter['state'] == 1 else '#a94442' if newsletter['state'] == 2 else '#3c763d'}}">
+						{{"En espera" if newsletter['state'] == 0 else "Procesando" if newsletter['state'] == 1 else "Con errores" if newsletter['state'] == 2 else "Finalizada"}}
+					</td>
+					<td>
+						{%- if newsletter['state'] > 0 %}
+							<a href="/log_news/{{ newsletter['id_newsletter'] }}" target="_blank" ><span class="glyphicon glyphicon-list-alt"></span></a></td>
+						{%- endif %}
+					<td>
+						{%- if newsletter['state'] == 3 %}
+							<a href="/html/{{ newsletter['id_newsletter'] }}" ><span class="glyphicon glyphicon-download-alt"></span></a></td>
+						{%- endif %}
+					<td>
+						{%- if newsletter['state'] == 0 %}
+						<a href="/remove_news/{{ newsletter['id_newsletter'] }}"><span class="glyphicon glyphicon-remove"></span></a>
+						{%- endif %}
+					</td>
+				</tr>
+			{%- endfor %}
+		  </table>
+		</div>
+	</div>
+	
+	
+	
+	
+	<div class="modal fade" id="nuevo_news" tabindex="-1" role="dialog" aria-labelledby="nuevo-model-label" aria-hidden="true">
+	  <div class="modal-dialog">
+		<div class="modal-content">
+		  <div class="modal-header">
+			<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+			<h4 class="modal-title" id="nuevo-model-label">Nueva Newsletter</h4>
+		  </div>
+		  <div class="modal-body">
+			  <div class="well bs-component">
+              <form id="form" class="form-horizontal" method="POST">
+                <fieldset>
+                  <div class="form-group">
+                    <label for="start_date" class="col-lg-3 control-label">Texto cabecera</label>
+                    <div class="col-lg-9">
+					  <textarea placeholder="Texto cabecera" id="header_text" name="header_text" class="form-control" rows="5"></textarea>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="mode" class="col-lg-3 control-label">Tipo enlaces</label>
+                    <div class="col-lg-9">
+                      <select name="type_link" id="type_link" class="form-control">
+							<option value="N">Normal</option>
+							<option value="A">Afiliados</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div id="affil">
+					  <div class="form-group">
+						<label for="mode" class="col-lg-3 control-label">Id. Afiliado.</label>
+						<div class="col-lg-9">
+						  <input class="form-control" type="text" id="id_affil" name="id_affil" placeholder="afiliado">
+						</div>
+					  </div>
+				  </div>
+                  <div class="form-group">
+                    <label for="mode" class="col-lg-3 control-label">Tipo plantilla</label>
+                    <div class="col-lg-9">
+                      <select name="template" id="template" class="form-control">
+							<option value="N">Normal</option>
+							<option value="R">Reservas</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="date_from" class="col-lg-3 control-label">Fecha desde</label>
+                    <div class="col-lg-9">
+                      <input type="text" class="form-control" id="date_from" name="date_from" placeholder="Fecha desde"/>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="date_from" class="col-lg-3 control-label">Fecha hasta</label>
+                    <div class="col-lg-9">
+                      <input type="text" class="form-control datapicker" id="date_to" name="date_to" placeholder="Fecha hasta"/>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="date_from" class="col-lg-3 control-label">Categorias</label>
+                    <div class="col-lg-9">
+					  <div id="tree_categories"></div>
+                      <input type="text" class="form-control" id="categories" name="categories" placeholder="categorias" value=""/>
+                    </div>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="banner_1_active" class="col-lg-8 control-label">Banner después de texto</label>
+                    <div class="col-lg-1">
+                      <input type="checkbox" class="form-control banner_active" id="banner_1_active" name="banner_1_active" />
+                    </div>
+                  </div>
+                  <div class="banner banner_1">
+					  <div class="form-group">
+						<label for="banner_1_url" class="col-lg-3 control-label">url</label>
+						<div class="col-lg-9">
+						  <input type="text" class="form-control" id="banner_1_url" name="banner_1_url" placeholder="url banner después de texto"/>
+						</div>
+					  </div>
+					  <div class="form-group">
+						<label for="banner_1_image" class="col-lg-3 control-label">image</label>
+						<div class="col-lg-9">
+						  <input type="text" class="form-control" id="banner_1_image" name="banner_1_image" placeholder="imagen banner después de texto"/>
+						</div>
+					  </div>
+                  </div>
+                  
+				  <div class="form-group">
+					<label for="banner_2_active" class="col-lg-8 control-label">Banner después de primera categoría</label>
+					<div class="col-lg-1">
+					  <input type="checkbox" class="form-control banner_active" id="banner_2_active" name="banner_2_active" />
+					</div>
+				  </div>
+				  <div class="banner banner_2">
+					  <div class="form-group">
+						<label for="banner_2_url" class="col-lg-3 control-label">url</label>
+						<div class="col-lg-9">
+						  <input type="text" class="form-control" id="banner_2_url" name="banner_2_url" placeholder="url banner después de primera categoría"/>
+						</div>
+					  </div>
+					  <div class="form-group">
+						<label for="banner_2_image" class="col-lg-3 control-label">image</label>
+						<div class="col-lg-9">
+						  <input type="text" class="form-control" id="banner_2_image" name="banner_2_image" placeholder="imagen banner después de primera categoría"/>
+						</div>
+					  </div>
+				 </div>
+                  
+                  <div class="form-group">
+                    <label for="banner_3_active" class="col-lg-8 control-label">Banner antes de última categoría</label>
+                    <div class="col-lg-1">
+                      <input type="checkbox" class="form-control banner_active" id="banner_3_active" name="banner_3_active" />
+                    </div>
+                  </div>
+                  
+                  <div class="banner banner_3">
+					  <div class="form-group">
+						<label for="banner_3_url" class="col-lg-3 control-label">url</label>
+						<div class="col-lg-9">
+						  <input type="text" class="form-control banner_active" id="banner_3_url" name="banner_3_url" placeholder="url antes de última categoría"/>
+						</div>
+					  </div>
+					  <div class="form-group">
+						<label for="banner_3_image" class="col-lg-3 control-label">image</label>
+						<div class="col-lg-9">
+						  <input type="text" class="form-control" id="banner_3_image" name="banner_3_image" placeholder="imagen antes de última categoría"/>
+						</div>
+					  </div>
+				  </div>
+				  	  
+                  <div class="form-group">
+                    <label for="banner_4_active" class="col-lg-8 control-label">Banner antes de pie</label>
+                    <div class="col-lg-1">
+                      <input type="checkbox" class="form-control banner_active" id="banner_4_active" name="banner_4_active" />
+                    </div>
+                  </div>
+                  
+                  <div class="banner banner_4">
+					  <div class="form-group">
+						<label for="banner_4_url" class="col-lg-3 control-label">url</label>
+						<div class="col-lg-9">
+						  <input type="text" class="form-control" id="banner_4_url" name="banner_4_url" placeholder="url antes de pie"/>
+						</div>
+					  </div>
+					  <div class="form-group">
+						<label for="banner_4_image" class="col-lg-3 control-label">image</label>
+						<div class="col-lg-9">
+						  <input type="text" class="form-control" id="banner_4_image" name="banner_4_image" placeholder="imagen antes de pie"/>
+						</div>
+					  </div>
+				  </div>
+                  
+                </fieldset>
+              </form>
+		  </div>
+		  <div class="modal-footer">
+			<span id="resultado"></span>
+			<button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
+			<button type="button" class="btn btn-primary" id="send_contact">Crear</button>
+		  </div>
+		</div>
+	  </div>
+	</div>
+    
+    <script>
+		function get_categories(){
+			var all_categories = [];
+			{%- for category in categories %}
+				all_categories.push('{{ category }}');
+			{%- endfor %}
+			return all_categories;
+		}
+	</script>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+	<script src="/static/bootstrap-datepicker.js"></script>
+	<script src="/static/bootstrap-datepicker.es.js"></script>
+	<script src="/static/bootstrap-treeview.min.js"></script>
+	<script src="/static/main.js"></script>
+	
+	
+	
+  </body>
+</html>
