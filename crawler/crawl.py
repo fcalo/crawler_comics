@@ -673,9 +673,14 @@ class CrawlerComics(object):
 				  title_collection)
 		else:
 			#comming
-			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
-			  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
-			  self.metas['category'], self.metas['subcategory'], manufacturer)
+			if is_merchandising:
+				self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
+				  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
+				  self.metas['category'], title_collection, self.metas['subcategory'])
+			else:
+				self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
+				  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
+				  self.metas['category'], self.metas['subcategory'], manufacturer)
 		
 		self.metas['homespecial'] = 1 if abs((now - d_created).days) <10 else 0
 		
@@ -735,11 +740,11 @@ class CrawlerComics(object):
 		self.metas['stock'] = 40 if u"próxima" in l_stock else 10 \
 		  if "saldado" in l_stock or "disponible" in l_stock else 0
 		  
-		if d_created > now: 
-			self.metas['stock'] = 40
-			
 		if is_merchandising and not self.is_in_external_stock(self.metas['id']):
 			self.metas['stock'] = 0
+			
+		if d_created > now: 
+			self.metas['stock'] = 40
 			
 		if previous_metas:
 			#has been seen already
