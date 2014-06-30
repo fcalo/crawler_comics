@@ -378,9 +378,14 @@ class CrawlerComics_3(CrawlerComics):
 				  title_collection)
 		else:
 			#comming
-			self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
-			  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
-			  self.metas['category'], self.metas['subcategory'], manufacturer)
+			if "MERCHANDISING" in self.metas['category']:
+				self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
+				  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
+				  self.metas['category'], title_collection, self.metas['subcategory'])
+			else:
+				self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
+				  (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
+				  self.metas['category'], self.metas['subcategory'], manufacturer)
 			  
 		try:
 			self.metas['categories'] = "@".join([self.normalize_category(unicode(c.encode("latin-1"), "utf-8")) for c in self.metas['categories'].split("@")])
