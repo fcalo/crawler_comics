@@ -14,8 +14,13 @@ app = Flask(__name__)
 @app.route('/tasks/', methods = ["GET", "POST"])
 def tasks():
 	if request.method == "POST":
+		
+		
 		s_date = time.strftime("%Y-%m-%d %H:%M:00", time.strptime(request.form['start_date'], "%d/%m/%Y %H:%M"))
-		task = Task(start_date = s_date, type_task = request.form['type_task'], mode = 0 if "mode" in request.form else 1)
+		task = Task(start_date = s_date, type_task = request.form['type_task'], \
+			mode = 0 if "mode" in request.form else 1, \
+			week_day = request.form['week_day'] if "auto" in request.form and request.form['auto'] == "on" else None, \
+			hour = request.form['hour'] if "auto" in request.form and request.form['auto'] == "on" else None)
 		db_session.add(task)
 		
 	#~ url_subq = session.query(URL).count(URL.url).group_by(URL.last_seen_task).subquery()

@@ -8,13 +8,18 @@ class Task(Base):
 	type_task = Column(Integer)
 	state = Column(Integer)
 	mode = Column(Integer)
+	week_day = Column(Integer)
+	hour = Column(Integer)
 	
-	def __init__(self, id_task = None, start_date = None, type_task = 0, mode = 0):
+	def __init__(self, id_task = None, start_date = None, type_task = 0, mode = 0, week_day = None, hour = None):
 		self.id_task = id_task
 		self.start_date = start_date
 		self.type_task = type_task
 		self.mode = mode
 		self.state = 0
+		self.week_day = week_day
+		self.hour = hour
+		
         #~ self.mode = mode
         #~ self.state = 0
         

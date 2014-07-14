@@ -121,6 +121,34 @@
                       <input type="checkbox" class="form-control" id="mode" name="mode" />
                     </div>
                   </div>
+                  <div class="form-group">
+                    <label for="auto" class="col-lg-2 control-label">Automatizar</label>
+                    <div class="col-lg-10">
+                      <input type="checkbox" class="form-control" name="auto" id="auto" />
+                    </div>
+                  </div>
+                  <div id="auto-panel">
+					  <div class="form-group">
+						<label for="week_day" class="col-lg-2 control-label">Todos los </label>
+						<div class="col-lg-10">
+						  <select name="week_day" id="week_day" class="form-control">
+							<option value="0"> Lunes </option>
+							<option value="1"> Martes </option>
+							<option value="2"> Miércoles </option>
+							<option value="3"> Jueves </option>
+							<option value="4"> Viernes </option>
+							<option value="5"> Sabado </option>
+							<option value="6"> Domingo </option>
+						  </select>
+						</div>
+					  </div>
+					  <div class="form-group">
+						<label for="hour" class="col-lg-2 control-label">A las</label>
+						<div class="col-lg-10">
+						  <input type="text" class="form-control" id="hour" name="hour" value ="00:00"/>
+						</div>
+					  </div>
+				  </div>
                 </fieldset>
               </form>
 		  </div>

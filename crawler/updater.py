@@ -178,8 +178,16 @@ class Updater(object):
 						else "Añadir a Lista de Espera" if data_master_stock['stock'] == "0" \
 						else "En Stock - 3/5 Días" if data_master_stock['stock'] == "10" \
 						else "En Stock - 48 Horas" 
+					
+					
 					if not 'categories' in data_master_stock:	
 						data_master_stock['categories'] = data['categories']
+						data['control'] = ""
+					else:
+						data['control'] = "" if data_master_stock['categories'] == data['categories'] else "novedad"
+					
+					
+					
 					data_master_stock['distributor'] = self.name_supplier
 					
 					self.print_line(self.get_metas_orderer(data_master_stock))

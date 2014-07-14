@@ -80,6 +80,19 @@ class DB(object):
 		self.logger.info("[DB.start_new_task] creada tarea %d" % _id)
 		return _id
 		
+	def create_auto_task(self, start_date, mode, type_task, week_day, hour):
+		""" create new automatic task  """
+		
+		self.logger.info("[DB.create_auto_task]")
+		self.cur.execute("INSERT INTO task \
+		  (start_date, state, mode, type_task, week_day, hour) VALUES \
+		  ( '%s', 0, '%s', '%s', '%s', '%s');" % (start_date, mode, type_task, week_day, hour))
+		_id = self.con.insert_id()
+		
+		self.con.commit()
+		self.logger.info("[DB.create_auto_task] creada tarea %d" % _id)
+		return True
+		
 	def save_data(self, url, metas, id_task):
 		""" save all data for url """
 		

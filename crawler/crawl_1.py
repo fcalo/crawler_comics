@@ -293,6 +293,8 @@ class CrawlerComics_1(CrawlerComics):
 		
 		self.init_metas(previous_metas)
 		
+		
+		extracted = False
 		for meta, _xpath in self.xpaths.items():
 			with_label = len(_xpath) > 1
 			
@@ -308,6 +310,7 @@ class CrawlerComics_1(CrawlerComics):
 					if self.verbose:
 						print "\t", meta, _xpath
 					continue
+				extracted = True
 				if self.verbose:
 					print meta, extract, _xpath
 				try:
@@ -337,6 +340,11 @@ class CrawlerComics_1(CrawlerComics):
 		
 			if meta in self.metas:
 				self.metas[meta] = self.metas[meta].strip()
+		
+		if not extracted:
+			self.logger.warning("No se ha podido extraer %s" % url)
+			return True
+		
 		
 		if 'alt="proximamente"' in data_url:
 			proximamente = True

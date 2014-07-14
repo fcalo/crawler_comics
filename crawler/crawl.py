@@ -192,7 +192,8 @@ class CrawlerComics(object):
 		for c1, c2 in replace_chars.items():
 			cat = cat.replace(c1, c2)
 			
-		return strip_accents(cat).upper()
+		return cat.upper()
+		#~ return strip_accents(cat).upper()
 	
 	def normalize_path(self, path):
 		"""prepare a valid path to ftp"""
@@ -614,6 +615,8 @@ class CrawlerComics(object):
 			if meta in self.metas:
 				self.metas[meta] = self.metas[meta].strip()
 				
+		
+				
 		if "lprice" in self.metas and "rprice" in self.metas:	
 			self.metas['price2'] = self.metas['lprice'] if "PRECIO FINAL" in self.metas['rprice'] else self.metas['rprice']
 			precio_neto = "PRECIO NETO" in self.metas['price2']
@@ -793,7 +796,8 @@ class CrawlerComics(object):
 						self.metas[meta] = self.metas[meta].encode("utf-8")
 					except UnicodeDecodeError:
 						pass
-			
+						
+		
 		self.db.save_data(url, self.metas, self.id_task)
 		#~ self.print_line(self.get_metas_orderer())
 		self.upload_images()
@@ -938,7 +942,6 @@ class CrawlerComics(object):
 				#to end of year
 				if year == start_year:
 					n_products = 1
-					
 			#back
 			week = int(start_week[-2:])
 			year = int(start_week[:4])
@@ -983,7 +986,7 @@ class CrawlerComics(object):
 		for url_data in datas:
 			self.metas = url_data
 			self.metas['category'] = self.metas['categories'].split("@")[0]
-			self.metas['manufacturer'] = self.metas['categories'].split("/")[-2]
+			#~ self.metas['manufacturer'] = self.metas['categories'].split("/")[-2]
 			
 			title_collection = get_title_collection(self.metas['title'], self.metas['category'], self.metas['manufacturer'])
 			
