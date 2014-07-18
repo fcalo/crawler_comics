@@ -220,7 +220,10 @@ class CrawlerComics_2(CrawlerComics):
 			self.data_external_xml = {}
 			
 			html = self.download_url(self.config['url_master'])
+			
 			link = re.findall('.*?href="([^"]*MAESTRO__LIBRERIAS_WEB.xlsx)".*?', html)[0]
+			
+			
 			
 			url = ("http://%s/%s" % (self.config['domain'], link)).replace("../","")
 			
@@ -234,24 +237,28 @@ class CrawlerComics_2(CrawlerComics):
 			finish = False
 			row_pos = 1
 			while not finish:
+				if row_pos> 100000:
+					break
+				#~ print row_pos, repr(wb.active.cell(row = row_pos, column = 5).value)
 				if not start:
-					if wb.active.cell(row = row_pos, column = 4).value in ['OK', 'NO DISPONIBLE']:
+					if wb.active.cell(row = row_pos, column = 5).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
 						start = True
 				else:
-					if not wb.active.cell(row = row_pos, column = 4).value in ['OK', 'NO DISPONIBLE']:
+					if not wb.active.cell(row = row_pos, column = 5).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
 						finish = True
-						
+				
+				#~ print "\t", start, finish
 				if start and not finish:
 					item = {}
 					item['extra_field_7'] = item['extra_field_11'] = wb.active.cell(row = row_pos, column = 1).value
 					item['id'] = item['mfgid'] = wb.active.cell(row = row_pos, column = 2).value
 					item['title'] = item['name'] = wb.active.cell(row = row_pos, column = 3).value
-					item['stock_log'] = wb.active.cell(row = row_pos, column = 4).value
-					item['price2'] = wb.active.cell(row = row_pos, column = 5).value
-					item['extra_field_10'] = wb.active.cell(row = row_pos, column = 6).value
-					item['subcategory'] = wb.active.cell(row = row_pos, column = 7).value
-					item['extra_field_4'] = wb.active.cell(row = row_pos, column = 9).value
-					item['extra_field_5'] = wb.active.cell(row = row_pos, column = 10).value
+					item['stock_log'] = wb.active.cell(row = row_pos, column = 5).value
+					item['price2'] = wb.active.cell(row = row_pos, column = 6).value
+					item['extra_field_10'] = wb.active.cell(row = row_pos, column = 7).value
+					item['subcategory'] = wb.active.cell(row = row_pos, column = 8).value
+					#~ item['extra_field_4'] = wb.active.cell(row = row_pos, column = 9).value
+					#~ item['extra_field_5'] = wb.active.cell(row = row_pos, column = 10).value
 					item['extra_field_1'] = "01/01/2008"
 					item['description'] = item['extended_description'] = ""
 					item['image1'] = item['thumbnail'] = "No_Disponible.gif"
@@ -300,7 +307,11 @@ class CrawlerComics_2(CrawlerComics):
 					
 			#~ print _id
 			self.init_metas()
-			self.metas = dict(self.metas.items() + self.get_data_from_external_xml(_id).items())
+			try:
+				self.metas = dict(self.metas.items() + self.get_data_from_external_xml(_id).items())
+			except AttributeError:
+				#not finded
+				continue
 			
 			id_product = self.metas['id']
 			
@@ -593,6 +604,7 @@ class CrawlerComics_2(CrawlerComics):
 
 	def run(self):
 		"""start complete crawler"""
+		
 		
 		self.logger.info("[run] iniciando(Completo=%s)" % self.mode_complete)
 		
