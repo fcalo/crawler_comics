@@ -221,7 +221,7 @@ class CrawlerComics_2(CrawlerComics):
 			
 			html = self.download_url(self.config['url_master'])
 			
-			link = re.findall('.*?href="([^"]*MAESTRO__LIBRERIAS_WEB.xlsx)".*?', html)[0]
+			link = re.findall('.*?href="([^"]*_MAESTRO.xlsx)".*?', html)[0]
 			
 			
 			
