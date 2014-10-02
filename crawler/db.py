@@ -288,7 +288,8 @@ class DB(object):
 		
 		self.cur.execute("SELECT t.*,tt.scriptname file  FROM  task t \
 		  INNER JOIN type_task tt ON tt.id_type_task = t.type_task \
-		  WHERE state = 0 AND NOT EXISTS (SELECT 1 FROM task \
+		  WHERE state = 0 AND start_date < NOW() \
+          AND NOT EXISTS (SELECT 1 FROM task \
 		  WHERE type_task = t.type_task AND state = 1)")
 		try:
 			return self.cur.fetchall()[0]
