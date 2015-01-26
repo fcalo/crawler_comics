@@ -176,7 +176,7 @@ class Updater(object):
 					
 					data_master_stock['instock_message'] = "Pre-Reserva" if data_master_stock['stock'] == "40" \
 						else "Añadir a Lista de Espera" if data_master_stock['stock'] == "0" \
-						else "En Stock - 3/5 Días" if data_master_stock['stock'] == "10" \
+						else "Envío 5 a 7 Días" if data_master_stock['stock'] == "10" \
 						else "En Stock - 48 Horas" 
 					
 					
@@ -205,7 +205,7 @@ class Updater(object):
 					
 					data['instock_message'] = "Pre-Reserva" if data['stock'] == "40" \
 						else "Añadir a Lista de Espera" if data['stock'] == "0" \
-						else "En Stock - 3/5 Días" if data['stock'] == "10" \
+						else "Envío 5 a 7 Días" if data['stock'] == "10" \
 						else "En Stock - 48 Horas" 
 						
 					if not 'categories' in data:

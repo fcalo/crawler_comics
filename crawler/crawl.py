@@ -161,6 +161,8 @@ class CrawlerComics(object):
         self.category_ban = {"LIBROS" : ["BIOGRAFIA", "MUSICA"],
            "COMICS" : ["ENSAYO", "PAPELERIA"],
            "VARIOS" : ""} 
+           
+        self.categories_like_merchandising = ['ACCESORIOS', 'JUEGOS', 'DVD BLU-RAY', 'LIBROS', 'REVISTAS', 'MERCHANDISING']
 
         
         #initialite DB
@@ -220,7 +222,7 @@ class CrawlerComics(object):
     
             
     def init_metas(self, previous_metas = False):
-        self.metas = {"distributor" : self.config['distributor'], "extra_field_13": 0 if previous_metas else 2}
+        self.metas = {"distributor" : self.config['distributor'], "extra_field_13": "Cambio" if previous_metas else "Novedad"}
 
     
     def extract(self, xpath):
@@ -542,6 +544,7 @@ class CrawlerComics(object):
         
         is_merchandising = "MERCHANDISING" in self.metas['category']
         
+        
         #category validations
         if self.metas['category'] in self.category_alias:
             if isinstance(self.category_alias[self.metas['category']], basestring):
@@ -650,7 +653,11 @@ class CrawlerComics(object):
         
         if self.metas['manufacturer'] in self.manufacturer_alias:
             self.metas['manufacturer'] = self.manufacturer_alias[self.metas['manufacturer']]
-        title_collection = get_title_collection(self.metas['title'], self.metas['category'], self.metas['manufacturer'])
+            
+        title_collection = get_title_collection(self.metas['title'], 
+            self.metas['category'], self.metas['manufacturer'], 
+            False, self.categories_like_merchandising)
+            
         
         manufacturer = self.metas['manufacturer'] if self.metas['manufacturer'] else "VARIOS"
         
@@ -675,14 +682,16 @@ class CrawlerComics(object):
                   title_collection)
         else:
             #comming
-            if is_merchandising:
+            if is_merchandising or self.metas['category'] in self.categories_like_merchandising:
                 self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
                   (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
-                  self.metas['category'], title_collection, self.metas['subcategory'])
+                  self.metas['category'], self.metas['subcategory'], title_collection )
             else:
                 self.metas['categories'] = "PROXIMAMENTE@PROXIMAMENTE/%s@PROXIMAMENTE/%s/%s@PROXIMAMENTE/%s/%s/%s" % \
                   (self.metas['category'], self.metas['category'], self.metas['subcategory'], \
                   self.metas['category'], self.metas['subcategory'], manufacturer)
+        
+        
         
         self.metas['homespecial'] = 1 if abs((now - d_created).days) <10 else 0
         
@@ -759,7 +768,13 @@ class CrawlerComics(object):
           
         self.metas['instock_message'] = "Pre-Reserva" if self.metas['stock'] == 40 \
           else "Añadir a Lista de Espera" if self.metas['stock'] == 0 \
-          else "En Stock - 3/5 Días"
+          else "Envío 5 a 7 Días"
+          
+          
+        #all products of this categories when stock > 0 have a custom message
+        categories_order = ['ACCESORIOS', 'DVD-BLU RAY', 'MERCHANDISING', 'JUEGOS']
+        if self.metas['stock'] > 0 and any(cat in self.metas['category'] for cat in categories_order):
+            self.metas['instock_message'] = "Disponible Bajo Pedido"
         
           
         self.metas['reward_points'] = int(self.metas['price'] * 20 if d_created > now else self.metas['price'] * 10)
@@ -987,7 +1002,15 @@ class CrawlerComics(object):
             self.metas['category'] = self.metas['categories'].split("@")[0]
             #~ self.metas['manufacturer'] = self.metas['categories'].split("/")[-2]
             
-            title_collection = get_title_collection(self.metas['title'], self.metas['category'], self.metas['manufacturer'])
+            try:
+                title_collection = get_title_collection(self.metas['title'], 
+                    self.metas['category'], self.metas['manufacturer'], 
+                    False, self.categories_like_merchandising)
+            except AttributeError:
+                #raise when categories_like_merchandising is not defined
+                #without categories_like_merchandising use old title
+                title_collection = get_title_collection(self.metas['title'], 
+                    self.metas['category'], self.metas['manufacturer'])
             
             if type(title_collection) == type(u""):
                 title_collection = title_collection.encode("utf-8")
@@ -1018,7 +1041,14 @@ class CrawlerComics(object):
             self.metas['category'] = self.metas['categories'].split("@")[0]
             self.metas['manufacturer'] = self.metas['categories'].split("/")[-2]
             
-            title_collection = get_title_collection(self.metas['title'], self.metas['category'], self.metas['manufacturer'])
+            try:
+                title_collection = get_title_collection(self.metas['title'], 
+                    self.metas['category'], self.metas['manufacturer'], 
+                    False, self.categories_like_merchandising)
+            except AttributeError:
+                title_collection = get_title_collection(self.metas['title'], 
+                    self.metas['category'], self.metas['manufacturer'])
+            
             
             if type(title_collection) == type(u""):
                 title_collection = title_collection.encode("utf-8")
@@ -1039,7 +1069,7 @@ class CrawlerComics(object):
                     self.metas['accessories'] = ",".join(accesories)
                     
             #removed
-            self.metas['extra_field_13'] = 1
+            self.metas['extra_field_13'] = "Borrado"
             self.metas['stock'] =  0
             self.metas['instock_message'] = "Añadir a Lista de Espera"
             
@@ -1077,7 +1107,7 @@ if __name__ == '__main__':
     
     
     if len(sys.argv) == 1:
-        crawl = CrawlerComics(verbose = true)
+        crawl = CrawlerComics(verbose = True)
         crawl.run()
     else:
         if "http" in sys.argv[1]:
@@ -1086,8 +1116,8 @@ if __name__ == '__main__':
                 #~ crawl.extract_product(url, "a", "b")
                 
 
-                crawl.extract_product(url, u"COMICS", u"COMIC ESPAÑOL")
-                #~ crawl.extract_product(url, "MERCHANDISING", "b")
+                #~ crawl.extract_product(url, u"COMICS", u"COMIC ESPAÑOL")
+                crawl.extract_product(url, "MERCHANDISING", "b")
                 crawl.generate_csv()
             
                 crawl.db.finish_task(crawl.id_task)

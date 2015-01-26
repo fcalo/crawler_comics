@@ -58,7 +58,7 @@ class CrawlerComics_1(CrawlerComics):
             "content" : ['//div[@id="all"]/div[2]//text()']
             }
         self.category_alias = {"EUROPEO" : "COMIC EUROPEO", "USA" : "COMIC USA",
-        "COMIC AMERCIANO": "COMIC USA"}
+        "COMIC AMERICANO": "COMIC USA", "AMERICANO": "COMIC USA"}
         self.category_ban = {}
         
         self.db = DB(self.logger, config_file)
@@ -231,7 +231,7 @@ class CrawlerComics_1(CrawlerComics):
     
     def init_metas(self, previous_metas = False):
         self.metas = {"distributor" : self.config['distributor'], "category": "COMICS",
-        "manufacturer" : self.config['manufacturer'], "tax_code" : "IVL", "extra_field_13": 0 if previous_metas else 2}
+        "manufacturer" : self.config['manufacturer'], "tax_code" : "IVL", "extra_field_13": "Cambio" if previous_metas else "Novedad"}
         
     def get_external(self, extra_field_7):
         #~ f = open("a.html", "w")
@@ -529,7 +529,12 @@ class CrawlerComics_1(CrawlerComics):
 
         self.metas['instock_message'] = "Pre-Reserva" if self.metas['stock'] == 40 \
           else "Añadir a Lista de Espera" if self.metas['stock'] == 0 \
-          else "En Stock - 3/5 Días"
+          else "Envío 5 a 7 Días"
+          
+        #all products of this categories when stock > 0 have a custom message
+        categories_order = ['ACCESORIOS', 'DVD-BLU RAY', 'MERCHANDISING', 'JUEGOS']
+        if self.metas['stock'] > 0 and any(cat in self.metas['category'] for cat in categories_order):
+            self.metas['instock_message'] = "Disponible Bajo Pedido"
           
         #images
         self.metas['thumbnail'] = self.metas['image1'] = self.config['img_norma'] % url.split("/")[-3]

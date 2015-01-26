@@ -102,7 +102,7 @@ class CrawlerComics_2(CrawlerComics):
     
     def init_metas(self, previous_metas = False):
         self.metas = {"distributor" : self.config['distributor'], "category": "COMICS"
-        ,"manufacturer" : self.config['distributor'], "tax_code" : "IVL", "extra_field_13": 0 if previous_metas else 2}
+        ,"manufacturer" : self.config['distributor'], "tax_code" : "IVL", "extra_field_13": "Cambio" if previous_metas else "Novedad"}
         
         
     def download_url(self, url, level = False):
@@ -251,18 +251,20 @@ class CrawlerComics_2(CrawlerComics):
             
             wb = load_workbook(filename = self.filename_xlsx)
             
+            column_stock = 4
+            
             start = False
             finish = False
             row_pos = 1
             while not finish:
                 if row_pos> 100000:
                     break
-                #~ print row_pos, repr(wb.active.cell(row = row_pos, column = 5).value)
+                #~ print self.filename_xlsx, row_pos, start, finish, repr(wb.active.cell(row = row_pos, column = column_stock).value)
                 if not start:
-                    if wb.active.cell(row = row_pos, column = 5).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
+                    if wb.active.cell(row = row_pos, column = column_stock).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
                         start = True
                 else:
-                    if not wb.active.cell(row = row_pos, column = 5).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
+                    if not wb.active.cell(row = row_pos, column = column_stock).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
                         finish = True
                 
                 #~ print "\t", start, finish
@@ -271,7 +273,8 @@ class CrawlerComics_2(CrawlerComics):
                     item['extra_field_7'] = item['extra_field_11'] = wb.active.cell(row = row_pos, column = 1).value
                     item['id'] = item['mfgid'] = wb.active.cell(row = row_pos, column = 2).value
                     item['title'] = item['name'] = wb.active.cell(row = row_pos, column = 3).value
-                    item['stock_log'] = wb.active.cell(row = row_pos, column = 5).value
+                    item['stock_log'] = wb.active.cell(row = row_pos, column = column_stock).value
+                    
                     item['price2'] = wb.active.cell(row = row_pos, column = 6).value
                     item['extra_field_10'] = wb.active.cell(row = row_pos, column = 7).value
                     item['subcategory'] = wb.active.cell(row = row_pos, column = 8).value
@@ -337,7 +340,7 @@ class CrawlerComics_2(CrawlerComics):
             
             
             if previous_metas:
-                self.metas['extra_field_13'] = 2
+                self.metas['extra_field_13'] = "Cambio"
                 #date in pass?
                 now = datetime.now()
                 date_created = time.strptime(self.metas['extra_field_1'].strip(), "%d/%m/%Y")
@@ -544,10 +547,14 @@ class CrawlerComics_2(CrawlerComics):
             except TypeError:
                 pass
             
-
         self.metas['instock_message'] = "Pre-Reserva" if self.metas['stock'] == 40 \
           else "Añadir a Lista de Espera" if self.metas['stock'] == 0 \
-          else "En Stock - 3/5 Días"
+          else "Envío 5 a 7 Días"
+        
+        #all products of this categories when stock > 0 have a custom message
+        categories_order = ['ACCESORIOS', 'DVD-BLU RAY', 'MERCHANDISING', 'JUEGOS']
+        if self.metas['stock'] > 0 and any(cat in self.metas['category'] for cat in categories_order):
+            self.metas['instock_message'] = "Disponible Bajo Pedido"
           
         for key_image, sufix in {'thumbnail':'_tb', 'image1':''}.items():
             if key_image in self.metas:
@@ -686,8 +693,12 @@ if __name__ == '__main__':
         crawl.run()
     else:
         if "http" in sys.argv[1]:
+            
             for url in sys.argv[1:]:
                 crawl = CrawlerComics_2()
+                print crawl.get_data_from_external_xml('0000817734')
+                exit()
+                crawl.last_first_id = None
                 crawl.extract_product(url)
                 crawl.generate_csv()
             
