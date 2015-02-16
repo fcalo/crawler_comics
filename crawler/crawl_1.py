@@ -259,6 +259,8 @@ class CrawlerComics_1(CrawlerComics):
         
         data_url = self.download_url(url)
         
+        self.logger.info("[extract_product] downloaded %s" % url)
+        
         if not data_url:
             self.logger.warning("No se ha podido extraer %s" % url)
             return True

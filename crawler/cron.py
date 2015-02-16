@@ -4,11 +4,11 @@ import os, logging, logging.handlers
 from db import DB
 import datetime
 def next_weekday(weekday):
-	d = datetime.datetime.now()
-	days_ahead = weekday - d.weekday()
-	if days_ahead <= 0: # Target day already happened this week
-		days_ahead += 7
-	return d + datetime.timedelta(days_ahead)
+    d = datetime.datetime.now()
+    days_ahead = weekday - d.weekday()
+    if days_ahead <= 0: # Target day already happened this week
+        days_ahead += 7
+    return d + datetime.timedelta(days_ahead)
 
 
 config_file = os.path.join(os.path.dirname(__file__), "crawler_comics.conf")
@@ -28,19 +28,32 @@ db = DB(logger, config_file)
 task = db.get_waiting_task()
 
 if task:
-	crawl_py = os.path.join(os.path.dirname(__file__), task['file'])
+    crawl_py = os.path.join(os.path.dirname(__file__), task['file'])
 
-	logger.info("[cron] Lanzando tarea %s, %d, mode %d" % (crawl_py, task['id_task'], task['mode']))
-	os.system("/usr/bin/python %s %d %d" % (crawl_py, task['id_task'], task['mode']))
-	logger.info("[cron] ¿Es tarea automatica? %d" % task['id_task'])
-	
-	#weekday puede ser cero y da problemas
-	if not task['week_day'] is None:
-		start_date = next_weekday(task['week_day']).replace(hour=int(str(task['hour']).split(":")[0]), minute=int(str(task['hour']).split(":")[1]))
-		db.create_auto_task(start_date, task['mode'], task['type_task'], task['week_day'], task['hour'])
-	
-	
-	logger.info("[cron] Terminada tarea %d" % task['id_task'])
+    logger.info("[cron] Lanzando tarea %s, %d, mode %d" % (crawl_py, task['id_task'], task['mode']))
+    os.system("/usr/bin/python %s %d %d" % (crawl_py, task['id_task'], task['mode']))
+    logger.info("[cron] ¿Es tarea automatica? %d" % task['id_task'])
+    
+    #weekday puede ser cero y da problemas
+    if not task['week_day'] is None:
+        start_date = next_weekday(task['week_day']).replace(hour=int(str(task['hour']).split(":")[0]), minute=int(str(task['hour']).split(":")[1]))
+        db.create_auto_task(start_date, task['mode'], task['type_task'], task['week_day'], task['hour'])
+    
+    
+    logger.info("[cron] Terminada tarea %d" % task['id_task'])
 else:
-	logger.info("[cron] Ninguna tarea pendiente")
-
+    logger.info("[cron] Ninguna tarea pendiente")
+    
+#Comprueba que las tareas en ejecución esten funcionando
+tasks = db.get_executing_tasks()
+if tasks:
+    for k, task in tasks.items():
+        log_path = os.path.join(os.path.dirname(__file__), "logs/crawler_*%s.log" % task)
+        
+        import glob
+        for name in glob.glob(log_path):
+            import os.path, time
+            last_mod = os.path.getmtime(name)
+            
+            if time.time() - last_mod > 1200:
+                db.finish_task(task, True)
