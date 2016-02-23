@@ -124,13 +124,13 @@ class CrawlerComics_3(CrawlerComics):
                 downloaded = True
             except urllib2.URLError as e:
                 self.logger.info("[download_url] Error descargando %s - %s" % (url, str(e)))
-                if tries == 5 and not level:
+                if tries == 50 and not level:
                     return self.download_url(url, True)
-                if tries > 5:
+                if tries > 50:
                     return False
                 else:
                     self.logger.info("[download_url] Reintentando ...")
-                time.sleep(tries)
+                time.sleep(tries * 2)
             
         data = resp.read()
         
@@ -161,13 +161,13 @@ class CrawlerComics_3(CrawlerComics):
                 downloaded = True
             except urllib2.URLError as e:
                 self.logger.info("[download_url] Error descargando %s - %s" % (url, str(e)))
-                if tries == 5 and not level:
+                if tries == 50 and not level:
                     return self.download_url(url, True)
-                if tries > 5:
+                if tries > 50:
                     raise
                 else:
                     self.logger.info("[download_url] Reintentando ...")
-                time.sleep(tries)
+                time.sleep(tries * 2)
             
         foo = resp.read()
         
@@ -188,11 +188,11 @@ class CrawlerComics_3(CrawlerComics):
                 downloaded = True
             except urllib2.URLError as e:
                 self.logger.info("[download_url_login] Error descargando %s - %s" % (url, str(e)))
-                if tries > 5:
+                if tries > 50:
                     raise
                 else:
                     self.logger.info("[download_url_login] Reintentando ...")
-                time.sleep(tries)
+                time.sleep(tries * 2)
             
         if 'content-encoding' in resp.headers and resp.headers['content-encoding'] == 'gzip':
             try:
@@ -390,6 +390,8 @@ class CrawlerComics_3(CrawlerComics):
         try:
             self.metas['categories'] = "@".join([self.normalize_category(unicode(c.encode("latin-1"), "utf-8")) for c in self.metas['categories'].split("@")])
         except UnicodeDecodeError:
+            self.metas['categories'] = "@".join([self.normalize_category(c) for c in self.metas['categories'].split("@")])
+        except UnicodeEncodeError:
             self.metas['categories'] = "@".join([self.normalize_category(c) for c in self.metas['categories'].split("@")])
             
         

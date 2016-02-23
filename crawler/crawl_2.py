@@ -10,6 +10,7 @@ from pprint import pprint
 from binascii import crc32
 import traceback
 from openpyxl import load_workbook
+import xlrd
 
 from utils import *
 from crawl import CrawlerComics
@@ -147,15 +148,17 @@ class CrawlerComics_2(CrawlerComics):
                 downloaded = True
             except urllib2.URLError as e:
                 self.logger.info("[download_url] Error descargando %s - %s" % (url, str(e)))
-                if tries == 5 and not level:
+                if tries == 50 and not level:
                     return self.download_url(url, True)
-                if tries > 5:
+                if tries > 50:
                     raise
                 else:
                     self.logger.info("[download_url] Reintentando ...")
-                time.sleep(tries)
+                time.sleep(tries * 2)
             
         foo = resp.read()
+        
+        self.logger.info("[download_url] URL -- %s" % (url))
         
         url = quote(url.encode("utf-8"),":/&?=")
         
@@ -179,11 +182,11 @@ class CrawlerComics_2(CrawlerComics):
                 downloaded = True
             except urllib2.URLError as e:
                 self.logger.info("[download_url_login] Error descargando %s - %s" % (url, str(e)))
-                if tries > 5:
+                if tries > 50:
                     raise
                 else:
                     self.logger.info("[download_url_login] Reintentando ...")
-                time.sleep(tries)
+                time.sleep(tries * 2)
             
         if 'content-encoding' in resp.headers and resp.headers['content-encoding'] == 'gzip':
             try:
@@ -208,11 +211,11 @@ class CrawlerComics_2(CrawlerComics):
                     downloaded = True
                 except urllib2.URLError as e:
                     self.logger.info("[download_url_login] Error descargando %s - %s" % (url, str(e)))
-                    if tries > 5:
+                    if tries > 50:
                         raise
                     else:
                         self.logger.info("[download_url_login] Reintentando ...")
-                    time.sleep(tries)
+                    time.sleep(tries * 2)
                 
             if 'content-encoding' in resp.headers and resp.headers['content-encoding'] == 'gzip':
                 try:
@@ -235,12 +238,17 @@ class CrawlerComics_2(CrawlerComics):
             html = self.download_url(self.config['url_master'])
             
             try:
-                link = re.findall('.*?href="([^"]*_MAESTRO.xlsx)".*?', html)[0]
+                link = re.findall('.*?href="([^"]*_MAESTRO.*.xlsx)".*?', html)[0]
             except IndexError:
-                link = re.findall('.*?href="([^"]*.xlsx)".*?title=".*?disponibilidad.*?"', html)[0]
-                
-                
-            
+                try:
+                    link = re.findall('.*?href="([^"]*_MAESTRO.*.xls)".*?', html)[0]
+                    if '"' in link:
+                        link = link.split('"')[0]
+                except IndexError:
+                    try:
+                        link = re.findall('.*?href="([^"]*.xlsx)".*?title=".*?disponibilidad.*?"', html)[0]
+                    except IndexError:
+                        link = re.findall('.*?href="([^"]*.xlsx.xls)".*?title=".*?disponibilidad.*?"', html)[0]
             
             
             url = ("http://%s/%s" % (self.config['domain'], link)).replace("../","")
@@ -249,7 +257,17 @@ class CrawlerComics_2(CrawlerComics):
             f.write(self.download_url(url))
             f.close()
             
-            wb = load_workbook(filename = self.filename_xlsx)
+            old = False
+            try:
+                wb = load_workbook(filename = self.filename_xlsx)
+            except: 
+                old = True
+                wb = xlrd.open_workbook(self.filename_xlsx)
+                #la segunda!!
+                try:
+                    first_sheet = wb.sheet_by_index(1)
+                except:
+                    first_sheet = wb.sheet_by_index(0)
             
             column_stock = 4
             
@@ -261,30 +279,56 @@ class CrawlerComics_2(CrawlerComics):
                     break
                 #~ print self.filename_xlsx, row_pos, start, finish, repr(wb.active.cell(row = row_pos, column = column_stock).value)
                 if not start:
-                    if wb.active.cell(row = row_pos, column = column_stock).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
-                        start = True
+                    if old:
+                        #~ self.logger.info(first_sheet.cell(row_pos, 2))
+                        #~ self.logger.info((row_pos, column_stock))
+                        try:
+                            if first_sheet.cell(row_pos, column_stock).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
+                                start = True
+                        except IndexError:
+                            pass
+                            
+                    else:
+                        if wb.active.cell(row = row_pos, column = column_stock).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
+                            start = True
                 else:
-                    if not wb.active.cell(row = row_pos, column = column_stock).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
-                        finish = True
+                    if old:
+                        if first_sheet.cell(row_pos, column_stock).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
+                            finish = True
+                    else:
+                        if not wb.active.cell(row = row_pos, column = column_stock).value in ['OK', 'OK ', 'NO DISPONIBLE', 'NO DISPONIBLE ']:
+                            finish = True
                 
                 #~ print "\t", start, finish
                 if start and not finish:
                     item = {}
-                    item['extra_field_7'] = item['extra_field_11'] = wb.active.cell(row = row_pos, column = 1).value
-                    item['id'] = item['mfgid'] = wb.active.cell(row = row_pos, column = 2).value
-                    item['title'] = item['name'] = wb.active.cell(row = row_pos, column = 3).value
-                    item['stock_log'] = wb.active.cell(row = row_pos, column = column_stock).value
-                    
-                    item['price2'] = wb.active.cell(row = row_pos, column = 6).value
-                    item['extra_field_10'] = wb.active.cell(row = row_pos, column = 7).value
-                    item['subcategory'] = wb.active.cell(row = row_pos, column = 8).value
+                    if old:
+                        item['extra_field_7'] = item['extra_field_11'] = first_sheet.cell(row_pos,  1).value
+                        item['id'] = item['mfgid'] = first_sheet.cell(row_pos, 2).value
+                        item['title'] = item['name'] = first_sheet.cell(row_pos, 3).value
+                        item['stock_log'] = first_sheet.cell(row_pos, column_stock).value
+                        item['price2'] = first_sheet.cell(row_pos, 5).value
+
+                        item['extra_field_10'] = first_sheet.cell(row_pos, 7).value
+                        item['subcategory'] = first_sheet.cell(row_pos, 8).value
+                    else:
+                        item['extra_field_7'] = item['extra_field_11'] = wb.active.cell(row = row_pos, column = 1).value
+                        item['id'] = item['mfgid'] = wb.active.cell(row = row_pos, column = 2).value
+                        item['title'] = item['name'] = wb.active.cell(row = row_pos, column = 3).value
+                        item['stock_log'] = wb.active.cell(row = row_pos, column = column_stock).value
+                        item['price2'] = wb.active.cell(row = row_pos, column = 5).value
+
+                        item['extra_field_10'] = wb.active.cell(row = row_pos, column = 7).value
+                        item['subcategory'] = wb.active.cell(row = row_pos, column = 8).value
                     #~ item['extra_field_4'] = wb.active.cell(row = row_pos, column = 9).value
                     #~ item['extra_field_5'] = wb.active.cell(row = row_pos, column = 10).value
                     item['extra_field_1'] = "01/01/2008"
                     item['description'] = item['extended_description'] = ""
                     item['image1'] = item['thumbnail'] = "No_Disponible.gif"
                     try:
-                        item['content'] = " ".join(["" if i is None else i for i in item.values()])
+                        item['content'] = " ".join(["" if i is None else \
+                            i.encode("utf-8") if isinstance(i, basestring) \
+                            else str(i) for i in item.values()])
                     except:
                         self.logger.error(item)
                         raise
@@ -357,14 +401,17 @@ class CrawlerComics_2(CrawlerComics):
                     
                     content = normalize_content(self.metas['content'])
                     
-                    if crc32(content.encode("utf-8")) == previous_metas['crc_content']:
-                        #no modifications
-                        self.db.refresh_seen(id_product, self.id_task)
-                        #ensure images
-                        if self.config['check_images_without_changes']:
-                            self.upload_images()
-                        n_products += 1
-                        continue
+                    try:
+                        if crc32(content.encode("utf-8")) == previous_metas['crc_content']:
+                            #no modifications
+                            self.db.refresh_seen(id_product, self.id_task)
+                            #ensure images
+                            if self.config['check_images_without_changes']:
+                                self.upload_images()
+                            n_products += 1
+                            continue
+                    except UnicodeDecodeError:
+                        pass
             
             n_products += self.process_metas(id_product, previous_metas = previous_metas)
             
@@ -378,19 +425,19 @@ class CrawlerComics_2(CrawlerComics):
         n_products = 0
         data_url = self.download_url(url)
         
+        self.logger.info("[extract_product] descargada %s" % url)
+        
         f = open("a.html", "w")
         f.write(data_url)
         f.close()
         
         
         self.tree = etree.fromstring(data_url, self.parser)
-        print self.tree
         
         proximamente = "novedades.php" in url
         
         products = self.extracts('//table[@id="llistat_comics"]/tr')
         
-        print products
         
         first = True
         for product in products:
@@ -457,7 +504,9 @@ class CrawlerComics_2(CrawlerComics):
                     self.metas[meta] = self.metas[meta].strip()
                     
             n_products +=  self.process_metas(id_product, proximamente, previous_metas)
-            
+        
+        self.logger.info("[extract_product] procesados %s productos" % n_products)
+        
         return n_products
                     
     def process_metas(self, id_product, proximamente = False, previous_metas = None):
@@ -586,7 +635,9 @@ class CrawlerComics_2(CrawlerComics):
         
         #keywords & metatags
         keys_keywords = ["category", "subcategory", "manufacturer", "title", "extra_field_10", "extra_field_3"]
-        self.metas['keywords'] = ", ".join(self.metas[i].strip() for i in keys_keywords if i in self.metas and len(self.metas[i])>1)
+        self.metas['keywords'] = ", ".join(self.metas[i].strip() \
+            for i in keys_keywords if i in self.metas and isinstance(self.metas[i], basestring) \
+            and len(self.metas[i])>1)
         
         self.metas['extra_field_7'] = "<div>%s</div>" % self.metas['extra_field_7']
         

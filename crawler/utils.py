@@ -210,7 +210,10 @@ def strip_accents(s):
                   if unicodedata.category(c) != 'Mn')
     
 def normalize_content(s):
-    return s.encode('ascii','ignore')
+    try:
+        return s.encode('ascii','ignore')
+    except:
+        return s
 
 MONTHS = {"enero" : 1, "febrero" : 2, "marzo" : 3, "abril" : 4, "mayo" : 5, 
   "junio":6, "julio" : 7, "agosto" : 8, "septiembre" : 9, "octubre" : 10,

@@ -324,6 +324,8 @@ class CrawlerComics(object):
             
     def download_img(self, url, filename, thumbnail = False):
         
+        self.logger.info("[download_img] %s - %s" % (url, filename))
+        
         path = os.path.join( os.path.dirname(__file__), "imgs/%s" % self.normalize_path(filename.encode("utf-8")))
         max_border = 100
         
@@ -344,22 +346,27 @@ class CrawlerComics(object):
                     tries += 1
                     r = urllib2.urlopen(url)
                     f = open(path, "w")
+                    self.logger.info("[download_img] descargando")
                     f.write(r.read())
+                    self.logger.info("[download_img] descargada")
                     f.close()
                     #~ resp = urllib2.urlopen(req)
                     downloaded = True
-                except urllib2.URLError as e:
+                #~ except urllib2.URLError as e:
+                except Exception as e:
                     self.logger.info("[download_url] Error descargando %s - %s" % (url, str(e)))
                     
-                    if tries > 5:
+                    if tries > 50:
                         raise
                     else:
                         self.logger.info("[download_url] Reintentando ...")
-                    time.sleep(tries)
+                    time.sleep(tries * 2)
             
             
         try:
+            self.logger.info("[download_img] abriendo")
             im = Image.open(path)
+            self.logger.info("[download_img] abierta")
         except:
             self.logger.error("[download_img]No se ha podido abrir %s al descargar %s " % (path, url))
             return False
@@ -380,6 +387,8 @@ class CrawlerComics(object):
         if not self.img_background_white(im):
             for boxpos in ["top", "bottom", "left", "right"]:
                 while self.img_has_border(im, boxpos):
+                    self.logger.info("[download_img] crop %s/%s" % (im.size[0], im.size[1]))
+                    
                     if boxpos == "top":
                         im = im.crop((0, 1, im.size[0], im.size[1]))
                     if boxpos == "bottom":
@@ -400,12 +409,12 @@ class CrawlerComics(object):
                     break
                     
             
-            
+        self.logger.info("[download_img] finalizando")
         if save:
             im.save(path, "JPEG", quality=100)
         else:
             im = Image.open(path)
-            
+        self.logger.info("[download_img] redimensionando")
         #resize
         
         r_size = (109, 146) if thumbnail else (263, 400)
@@ -416,6 +425,8 @@ class CrawlerComics(object):
                 im.save(path, "JPEG", quality=100)
             except IOError:
                 im.convert('RGB').save(path, "JPEG", quality=100)
+        
+        self.logger.info("[download_img] terminado")
         
         return True
 
@@ -455,13 +466,13 @@ class CrawlerComics(object):
                 downloaded = True
             except urllib2.URLError as e:
                 self.logger.info("[download_url] Error descargando %s - %s" % (url, str(e)))
-                if tries == 5:
+                if tries == 50:
                     return self.download_url(url)
-                if tries > 5:
+                if tries > 50:
                     raise
                 else:
                     self.logger.info("[download_url] Reintentando ...")
-                time.sleep(tries)
+                time.sleep(tries * 2)
             
         data = resp.read()
         
@@ -503,6 +514,8 @@ class CrawlerComics(object):
         
         self.metas = self.db.load_data(url)
         
+        self.logger.info("[extract_product] obtenido algo? %s" % bool(self.metas))
+        
         
         now = datetime.now()
         
@@ -533,6 +546,8 @@ class CrawlerComics(object):
                 previous_metas['stock'] = self.metas['stock']
                 previous_metas['price'] = self.metas['price']
                 previous_metas['thumbnail'] = self.metas['thumbnail']
+                
+            self.logger.info("[extract_product] tiempos")
         
         self.init_metas(previous_metas)
         self.metas['category'] = category.upper()
@@ -567,7 +582,7 @@ class CrawlerComics(object):
                 if self.metas['subcategory'] in self.category_ban[self.metas['category']]:
                     return False
         
-        
+        self.logger.info("[extract_product] categorias")
         
         #~ self.tree = etree.parse(url, self.parser)
         
@@ -617,7 +632,7 @@ class CrawlerComics(object):
             if meta in self.metas:
                 self.metas[meta] = self.metas[meta].strip()
                 
-        
+        self.logger.info("[extract_product] label")
                 
         if "lprice" in self.metas and "rprice" in self.metas:   
             self.metas['price2'] = self.metas['lprice'] if "PRECIO FINAL" in self.metas['rprice'] else self.metas['rprice']
@@ -642,7 +657,7 @@ class CrawlerComics(object):
             self.metas['price'] = float(self.metas['price2'].replace(".","").replace(",",".")) * 0.95
         
         
-        
+        self.logger.info("[extract_product] precio")
         
         date_created = time.strptime(self.metas['date'].strip(), "%d.%m.%Y")
         self.metas['extra_field_1'] = time.strftime("%d/%m/%Y", date_created)
@@ -662,6 +677,8 @@ class CrawlerComics(object):
         manufacturer = self.metas['manufacturer'] if self.metas['manufacturer'] else "VARIOS"
         
         l_stock = self.metas['label_stock'].lower()
+        
+        self.logger.info("[extract_product] varios")
         
         #~ if now > d_created: 
         if not u"próxima" in l_stock: 
@@ -695,6 +712,7 @@ class CrawlerComics(object):
         
         self.metas['homespecial'] = 1 if abs((now - d_created).days) <10 else 0
         
+        self.logger.info("[extract_product] pre-images")
         
         for key_image, sufix in {'thumbnail':'_tb', 'image1':'', 'image2':'_2', 'image3':'_3', 'image4':'_4'}.items():
             if key_image in self.metas:
@@ -709,6 +727,7 @@ class CrawlerComics(object):
                 self.metas[key_image] = "%s.jpg" % self.normalize_path(finalname.replace(".jpg", ""))
                 
         
+        self.logger.info("[extract_product] images")
         
         if not 'category' in self.metas:
             self.metas['category'] = "UNK"
@@ -725,9 +744,10 @@ class CrawlerComics(object):
                 s = s.replace("  ", " ")
             return s
                 
-        
-        self.metas['description'] = smart_truncate(clean_spaces(self.metas['description']))
-        self.metas['extended_description'] = clean_spaces(self.metas['extended_description'])
+        if 'description' in self.metas:
+            self.metas['description'] = smart_truncate(clean_spaces(self.metas['description']))
+        if 'extended_description' in self.metas:
+            self.metas['extended_description'] = clean_spaces(self.metas['extended_description'])
         
         
         keys_keywords = ["category", "subcategory", "manufacturer", "title", "extra_field_10", "extra_field_3"]
@@ -757,6 +777,8 @@ class CrawlerComics(object):
         if d_created > now: 
             self.metas['stock'] = 40
             
+        self.logger.info("[extract_product] keywords")
+        
         if previous_metas:
             #has been seen already
             if previous_metas['stock'] == self.metas['stock'] and \
@@ -811,10 +833,16 @@ class CrawlerComics(object):
                     except UnicodeDecodeError:
                         pass
                         
+        self.logger.info("[extract_product] to save")
+                        
         
         self.db.save_data(url, self.metas, self.id_task)
         #~ self.print_line(self.get_metas_orderer())
+        
+        self.logger.info("[extract_product] to upload")
         self.upload_images()
+        
+        self.logger.info("[extract_product] Fin")
         
     def upload_images(self):
         
@@ -831,9 +859,9 @@ class CrawlerComics(object):
             except:
                 raise
                 tries +=1
-                if tries > 5:
+                if tries > 50:
                     raise
-                time.sleep(tries)
+                time.sleep(tries * 2)
             
         
         
@@ -860,9 +888,9 @@ class CrawlerComics(object):
                                 created = True
                             except:
                                 tries +=1
-                                if tries > 5:
+                                if tries > 50:
                                     raise
-                                time.sleep(tries)
+                                time.sleep(tries * 2)
                         try:
                             ftps.cwd(path)
                         except error_perm as e:
@@ -894,9 +922,9 @@ class CrawlerComics(object):
                     except:
                         self.logger.warning("[upload_images] reintando subida %s" % local_filename)
                         tries +=1
-                        if tries > 5:
+                        if tries > 50:
                             raise
-                        time.sleep(tries)
+                        time.sleep(tries * 2)
                 
                     
         ftps.quit()

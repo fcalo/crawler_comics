@@ -88,11 +88,11 @@ class CrawlerComics_1(CrawlerComics):
         ('Host', 'www.zonalibros.com'),
         ('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'),
         ('Accept-Language', 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3'),
-        ('referer', 'http://www.zonalibros.com/login.aspx'),
         ('Connection', 'keep-alive'),
         ('Cache-Control', 'max-age=0'),
         ('Accept-Encoding', 'gzip,deflate')]
 
+        self.logger.info("[download_url_login] opener")
         urllib2.install_opener(opener)
         
         url = quote(url.encode("utf-8"),":/?&=")
@@ -104,6 +104,7 @@ class CrawlerComics_1(CrawlerComics):
         
         #~ req = urllib2.Request(_url, urllib.urlencode(post).replace("None", ""))
         req = urllib2.Request(_url, self.config['str_post'])
+        #~ req = urllib2.Request(_url)
         
         ck = {}
         downloaded = False
@@ -111,10 +112,13 @@ class CrawlerComics_1(CrawlerComics):
         while not downloaded:
             try:
                 tries += 1
-                resp = opener.open(req)
+                self.logger.info("[download_url_login] open")
+                resp = opener.open(req, timeout = 30)
+                self.logger.info("[download_url_login] opened")
                 #~ resp = urllib2.urlopen(req)
                 
                 ck = {c.name : c.value for c in cj}
+                #~ print ck
                 
                 downloaded = 'ZONALIBROS.ASPXAUTH' in ck
                 if not downloaded:
@@ -123,11 +127,11 @@ class CrawlerComics_1(CrawlerComics):
                         raise Exception("No login")
             except urllib2.URLError as e:
                 self.logger.warning("[download_url_login] Error descargando %s - %s" % (url, str(e)))
-                if tries > 5:
+                if tries > 50:
                     raise
                 else:
                     self.logger.warning("[download_url_login] Reintentando ...")
-                time.sleep(tries)
+                time.sleep(tries * 2)
             
         #~ if 'content-encoding' in resp.headers and resp.headers['content-encoding'] == 'gzip':
             #~ try:
@@ -138,6 +142,17 @@ class CrawlerComics_1(CrawlerComics):
             #~ foo = resp.read()
         
         
+        #~ if 'content-encoding' in resp.headers and resp.headers['content-encoding'] == 'gzip':
+            #~ try:
+                #~ data = gzip.GzipFile(fileobj = StringIO.StringIO(resp.read())).read()
+            #~ except IOError:
+                #~ return None
+        #~ else:
+            #~ data = resp.read()
+            #~ 
+        #~ return data
+        
+        #####
         
         
         
@@ -158,26 +173,35 @@ class CrawlerComics_1(CrawlerComics):
         
         #~ url = "http://www.zonalibros.com/Clientes/FichaArticulo.aspx?libro=108.629861"
         url = quote(url.encode("utf-8"),":/&?=")
+        
+        self.logger.info("[download_url_login] request")
+        #~ print "**" + url
         req = urllib2.Request(url)
         
+
         
         downloaded = False
         tries = 0
         while not downloaded:
             try:
                 tries += 1
-                
-                resp = opener.open(req)
+                self.logger.info("[download_url_login] open2")
+                #~ print
+                #~ print
+                #~ print
+                resp = opener.open(req, timeout = 30)
+                self.logger.info("[download_url_login] opened2")
+                #~ print resp.info()
                 
                 #~ resp = urllib2.urlopen(req)
                 downloaded = True
             except urllib2.URLError as e:
                 self.logger.info("[download_url_login] Error descargando %s - %s" % (url, str(e)))
-                if tries > 5:
+                if tries > 50:
                     raise
                 else:
                     self.logger.info("[download_url_login] Reintentando ...")
-                time.sleep(tries)
+                time.sleep(tries * 2)
             
         if 'content-encoding' in resp.headers and resp.headers['content-encoding'] == 'gzip':
             try:
@@ -212,20 +236,21 @@ class CrawlerComics_1(CrawlerComics):
         while not downloaded:
             try:
                 tries += 1
-                resp = opener.open(req)
+                resp = opener.open(req, timeout = 30)
                 #~ resp = urllib2.urlopen(req)
+                data = resp.read()
                 downloaded = True
             except urllib2.URLError as e:
                 self.logger.info("[download_url] Error descargando %s - %s" % (url, str(e)))
                 if tries == 5 and not level:
                     return self.download_url(url, True)
-                if tries > 5:
+                if tries > 50:
                     return False
                 else:
                     self.logger.info("[download_url] Reintentando ...")
-                time.sleep(tries)
+                time.sleep(tries * 2)
             
-        data = resp.read()
+        
         
         return data
     
@@ -237,9 +262,24 @@ class CrawlerComics_1(CrawlerComics):
         #~ f = open("a.html", "w")
         #~ f.write(self.download_url_login(self.config['url_external'] % extra_field_7))
         #~ f.close()
+        html = None
+        try:
+            url = self.config['url_external'] % extra_field_7.replace("-", "")
+            self.logger.info("[get_external] descargando %s" % url)
+            html = self.download_url_login(url)
+        except Exception as e:
+            self.logger.warning("No se ha podido descargar %s" % str(e))
         
-        tree = etree.fromstring(self.download_url_login(self.config['url_external'] % extra_field_7.replace("-", "")), self.parser)
+        if not html:
+            self.logger.info("[get_external] No se encuentra ")
+            return None, None, None, None
+        
+        self.logger.info("[get_external] Analizando ")
+        tree = etree.fromstring(html , self.parser)
+        self.logger.info("[get_external] Analizado ")
+        
         find = etree.XPath('//*[@id="ctl00_MainContent_txtCI"]//text()')
+        
         try:
             ref = find(tree)[0]
             find = etree.XPath('//*[@id="ctl00_MainContent_txtPublicacion"]//text()')
@@ -249,6 +289,7 @@ class CrawlerComics_1(CrawlerComics):
             stock = 0 if "agotado" in stock_label.lower() else 10
             return ref, ref, date, stock
         except IndexError:
+            self.logger.info("[get_external] No se encuentra ")
             return None, None, None, None
         #ctl00_MainContent_txtCI
         
