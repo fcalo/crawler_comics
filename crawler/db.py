@@ -48,6 +48,12 @@ class DB(object):
         
         if self.config['create_model']:
             
+            
+            
+            #task table
+            sql = "CREATE TABLE IF NOT EXISTS urls_t1 \
+              ( url varchar(255) NOT NULL PRIMARY KEY) CHARACTER SET=utf8;"
+
             #task table
             sql = "CREATE TABLE IF NOT EXISTS task \
               ( id_task int(6) NOT NULL AUTO_INCREMENT PRIMARY KEY, \
@@ -93,11 +99,39 @@ class DB(object):
         self.logger.info("[DB.create_auto_task] creada tarea %d" % _id)
         return True
         
+        
+    def create_task(self, mode, type_task):
+        """ create new automatic task  """
+        
+        self.logger.info("[DB.create_auto_task]")
+        self.cur.execute("INSERT INTO task \
+          (start_date, state, mode, type_task) VALUES \
+          ( now(), 0, '%s', '%s');" % (mode, type_task))
+        _id = self.con.insert_id()
+        
+        self.con.commit()
+        self.logger.info("[DB.create_task] creada tarea %d" % _id)
+        return True
+    
+    def reset_task(self, id_task):
+        """ create new automatic task  """
+        
+        self.logger.info("[DB.reset_task]")
+        self.cur.execute("UPDATE task \
+          SET state = 0 \
+          WHERE id_task = '%s';" % (id_task))
+        
+        
+        self.con.commit()
+        self.logger.info("[DB.reset_task] reseteada tarea %d" % id_task)
+        return True
+        
     def save_data(self, url, metas, id_task):
         """ save all data for url """
         
         self.logger.info("[DB.save_data] salvando datos para %s" % url)
         try:
+            
             
             
             sql = u"INSERT INTO %s (url, crc_content, last_seen_date, last_seen_task, %s)\
@@ -106,6 +140,10 @@ class DB(object):
               self.escape(url), crc32(metas['content']), id_task, \
               u"', '".join([self.escape(metas[k].decode("utf-8")) if isinstance(metas[k], basestring) else self.escape(str(metas[k])) for k in self.config['csv_header'] if k in metas]))
               
+            #~ self.logger.info("[DB.save_data] -- %s" % sql)
+            
+        except UnicodeDecodeError:
+            return False
         except Exception as e:
             
             try:
@@ -124,6 +162,8 @@ class DB(object):
           
         try:
             self.cur.execute(sql)
+        except UnicodeDecodeError:
+            pass
         except IntegrityError:
             #modification
             self.cur.execute("DELETE FROM %s WHERE url = '%s'" % (self.table_name, self.escape(url)))
@@ -131,6 +171,82 @@ class DB(object):
             sql_mod = sql.replace(", last_seen_task,", ", last_seen_task, last_mod_task,")
             sql_mod = sql_mod.replace("NOW(), %d," % id_task, "NOW(), %d, %d," % (id_task, id_task)) 
             self.cur.execute(sql_mod)
+            
+            #~ self.logger.info("[DB.save_data] -- %s" % sql)
+        except Exception as e:
+            self.logger.info("[DB.save_data] -- %s" % e)
+            try:
+                print sql
+            except:
+                pass
+            raise e
+        
+        return self.con.commit() 
+        
+    def get_html_url_t1 (self, url, id_task):
+        """  """
+        try:
+            url =  self.escape(url.decode("utf-8"))
+        except:
+            pass
+        
+        self.logger.info("[DB.get_html_url_t1] buscando %s - %s" % (id_task, url))
+        
+        self.cur.execute("SELECT html FROM urls_t1 where id_task = '%s' and url like '%s'" % (id_task, url))
+        
+        data = self.cur.fetchall()
+        
+        if data:
+            return data[0]['html']
+        
+        return False
+                
+        
+    def save_url_type1(self, url, id_task, html = None):
+        """ save all data for url """
+        
+        self.logger.info("[DB.save_url_type1] salvando datos para %s" % url)
+        try:    
+            url =  self.escape(url.decode("utf-8"))
+            if html:
+                html = self.escape(html.decode("utf-8"))
+                
+                sql = u"INSERT INTO urls_t1 (url, id_task, html)\
+                  VALUES ('%s', '%s', '%s') on duplicate key update id_task = '%s', html='%s' " %  (url, id_task, html, id_task, html)
+            else:
+                sql = u"INSERT INTO urls_t1 (url, id_task)\
+                  VALUES ('%s', '%s') on duplicate key update id_task = '%s' " %  (url, id_task, id_task)
+                  
+              
+            
+            self.cur.execute(sql)
+        except UnicodeEncodeError as e:
+            return True
+        except Exception as e:
+            try:
+                print sql
+            except:
+                pass
+            self.logger.info("[DB.save_url_type1] %s" % sql)
+            raise e
+            
+        return self.con.commit()
+        
+        
+    def remove_url_type1(self, url):
+        """ save all data for url """
+        
+        self.logger.info("[DB.remove_url_type1] salvando datos para %s" % url)
+        
+        try:
+            url =  self.escape(url.decode("utf-8"))
+        except:
+            pass
+        sql = u"DELETE FROM urls_t1 WHERE url = '%s'" %  (url)
+              
+          
+        try:
+            self.cur.execute(sql)
         except Exception as e:
             try:
                 print sql
@@ -194,17 +310,66 @@ class DB(object):
             self.cur.execute("SELECT * FROM %s WHERE last_mod_task = %s ORDER BY last_seen_date ASC" % (self.table_name, id_task))
             #TODO: deletes
             #self.cur.execute("SELECT * FROM url WHERE last_seen_task < %s ORDER BY last_seen_date ASC" % id_task)
-            
         
-        return self.cur.fetchall()
+        data = []
+        loop = 0
+        for row in self.cur:
+            loop += 1
+            self.logger.info("[DB.get_data_task] recorriendo cursor %s" % loop)
+            data.append(row)    
+        
+        return data
+        #~ return self.cur.fetchall()
     
+    def get_data_task_removed_lite(self, id_task):
+        """ return all data collected by one task """
+        self.logger.info("[DB.get_data_task] devolviendo datos de los borrados de la tarea %s" % id_task)
+        
+        self.cur.execute("SELECT url FROM %s WHERE last_seen_task < (%s - 1) ORDER BY last_seen_date ASC" % (self.table_name, id_task))
+        
+        
+        data = []
+        loop = 0
+        for row in self.cur:
+            loop += 1
+            self.logger.info("[DB.get_data_task] recorriendo cursor %s" % loop)
+            data.append(row)    
+        
+        return data
+        #~ return self.cur.fetchall()
     def get_data_task_removed(self, id_task):
         """ return all data collected by one task """
         self.logger.info("[DB.get_data_task] devolviendo datos de los borrados de la tarea %s" % id_task)
         
         self.cur.execute("SELECT * FROM %s WHERE last_seen_task < (%s - 1) ORDER BY last_seen_date ASC" % (self.table_name, id_task))
         
-        return self.cur.fetchall()
+        
+        data = []
+        loop = 0
+        for row in self.cur:
+            loop += 1
+            self.logger.info("[DB.get_data_task] recorriendo cursor %s" % loop)
+            data.append(row)    
+        
+        return data
+        #~ return self.cur.fetchall()
+        
+    def get_data_urls_t1(self, id_task = None):
+        """  """
+        self.logger.info("[DB.get_data_urls_t1] devolviendo datos")
+        
+        sql = ""
+        if id_task:
+            sql = "SELECT url FROM urls_t1 where id_task = '%s'" % id_task
+            
+        else:
+            sql = "SELECT url FROM urls_t1"
+            
+        
+        self.logger.info("[DB.get_data_urls_t1] %s" % sql)
+        self.cur.execute(sql)
+        
+        return [d['url'] for d in self.cur.fetchall()]
         
     
     def get_same_collection(self, title_collection, number_collection, id_task, asc = True):

@@ -75,7 +75,7 @@ class CrawlerComics_1(CrawlerComics):
         self.print_line(self.config["csv_header"], True)
 
 
-    def download_url_login(self, url):
+    def old_download_url_login(self, url):
         
         
         cj = cookielib.CookieJar()
@@ -259,9 +259,6 @@ class CrawlerComics_1(CrawlerComics):
         "manufacturer" : self.config['manufacturer'], "tax_code" : "IVL", "extra_field_13": "Cambio" if previous_metas else "Novedad"}
         
     def get_external(self, extra_field_7):
-        #~ f = open("a.html", "w")
-        #~ f.write(self.download_url_login(self.config['url_external'] % extra_field_7))
-        #~ f.close()
         html = None
         try:
             url = self.config['url_external'] % extra_field_7.replace("-", "")
@@ -411,6 +408,7 @@ class CrawlerComics_1(CrawlerComics):
         else:
             self.metas['subcategory'] = self.normalize_category(self.metas['subcategory'])
         
+        
         (self.metas['id'], self.metas['mfgid'], self.metas['extra_field_1'], stock_external) = self.get_external(self.metas['extra_field_7'])
         
         for x in xrange(1, 5):
@@ -450,8 +448,7 @@ class CrawlerComics_1(CrawlerComics):
                 sufix += 1
                 if sufix > 9:
                     break
-                    
-            
+        
         
         if not self.metas['id']: 
         

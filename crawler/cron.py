@@ -56,4 +56,4 @@ if tasks:
             last_mod = os.path.getmtime(name)
             
             if time.time() - last_mod > 1200:
-                db.finish_task(task, True)
+                db.reset_task(task)

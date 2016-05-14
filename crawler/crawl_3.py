@@ -40,20 +40,21 @@ class CrawlerComics_3(CrawlerComics):
         self.logger.setLevel(logging.INFO)
         self.logger.info("[__init__]")
         
-        self.xpaths = {"name" : ['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[2]/span//text()'],
-            "title" : ['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[2]/span//text()'],
-            "labels_date" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[4]//text()', ".*FECHA [^:]*:([^:|]*).*"],
-            "description" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[2]/div[1]//text()'],
-            "extended_description" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[2]/div[1]//text()'],
-            "price2" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[2]/div[6]//text()'],
-            "thumbnail" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[1]/a/img/@src'],
-            "image1" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[1]/a/img/@src', "(.*)_156(\..*)"],
-            "extra_field_4" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[4]//text()', ".* FORMATO:(.*),.*"],
-            "extra_field_5" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[4]//text()', ".* FORMATO:.*,(.*) p.*"],
-            "extra_field_10_a" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[4]//text()', ".*GUI[^:]*N:([^:]*)\|\|"],
-            "extra_field_10_b" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]/div[4]//text()', ".*DIBUJO:(.*)\|\|"],
-            "labels_categories" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[1]/span//text()'],
-            "content" :['//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div[2]//text()'],
+        self.xpaths = {"name" : ['//*[contains(@class, "titprod")]/text()'],
+            "title" : ['//*[contains(@class, "titprod")]/text()'],
+            
+            "labels_date" :['//*[contains(@class, "infoprod")]//text()', "(SALIDA|PUBLICACI[^:]*N):(.*)"],
+            "description" :['//*[contains(@class, "txtprod")]//text()'],
+            "extended_description" :['//*[contains(@class, "txtprod")]//text()'],
+            "price2" :['//*[contains(@class, "precio")]/text()'],
+            "thumbnail" :['//*[contains(@class, "imgbox")]/img/@src'],
+            "image1" :['//*[contains(@class, "imgbox")]/img/@src', "(.*)_156(\..*)"],
+            "extra_field_4" :['//*[contains(@class, "infoprod")]//text()', "FORMATO:(.*)"],
+            "extra_field_5" :['//*[contains(@class, "infoprod")]//text()', "FORMATO:(.*)"],
+            "extra_field_10_a" :['//*[contains(@class, "infoprod")]//text()', "GUI[^:]*N:(.*)"],
+            "extra_field_10_b" :['//*[contains(@class, "infoprod")]//text()', "DIBUJO:(.*)"],
+            "labels_categories" :['//*[contains(@class, "titulo")]//text()'],
+            "content" :['//*[contains(@class, "sec-prod")]//text()'],
             }
         
         
@@ -269,12 +270,22 @@ class CrawlerComics_3(CrawlerComics):
             if self.verbose:
                 print meta, extract, _xpath
             try:
+                
                 if len(_xpath) > 1:
                     if meta == "image1":
+                        
                         self.metas[meta] = "".join(re.findall(_xpath[1],extract)[0])
+                        print 
+                        
                     else:
                         try:
-                            self.metas[meta] = re.findall(_xpath[1],extract)[0]
+                            self.metas[meta] = re.findall(_xpath[1], extract, flags = re.S)[0]
+                            if type(self.metas[meta]) is tuple:
+                                self.metas[meta] = self.metas[meta][-1]
+                            self.metas[meta] = self.metas[meta].split("|")[0].strip()
+                            if self.verbose:
+                                print "regex"
+                                print self.metas[meta]
                         except IndexError:
                             self.logger.warning("[extract_product] No se ha podido extraer %s" % meta)
                 else:
@@ -292,7 +303,8 @@ class CrawlerComics_3(CrawlerComics):
                 
             if meta in self.metas:
                 self.metas[meta] = self.metas[meta].strip()
-                
+        
+        
         test = self.metas["title"]
         
         #~ import chardet
@@ -596,7 +608,7 @@ class CrawlerComics_3(CrawlerComics):
         if second_level:
             find = etree.XPath('//a/@href')
         else:
-            find = etree.XPath('//*[@id="aspnetForm"]/div[2]/div[3]/div[2]/div/div//a/@href')
+            find = etree.XPath('//*[contains(@class, "categorias")]//a/@href')
         links = find(tree)
         self.logger.info("[extract_category] recorriendo %s" % url)
         
@@ -652,7 +664,7 @@ if __name__ == '__main__':
     else:
         if "http" in sys.argv[1]:
             for url in sys.argv[1:]:
-                crawl = CrawlerComics_3()
+                crawl = CrawlerComics_3(verbose = False)
                 crawl.extract_product(url)
                 crawl.generate_csv()
             

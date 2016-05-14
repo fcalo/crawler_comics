@@ -502,8 +502,9 @@ class CrawlerComics_2(CrawlerComics):
                     
                 if meta in self.metas:
                     self.metas[meta] = self.metas[meta].strip()
-                    
-            n_products +=  self.process_metas(id_product, proximamente, previous_metas)
+            
+            if 'subcategory' in self.metas:
+                n_products +=  self.process_metas(id_product, proximamente, previous_metas)
         
         self.logger.info("[extract_product] procesados %s productos" % n_products)
         
@@ -513,7 +514,9 @@ class CrawlerComics_2(CrawlerComics):
         """ prepare data """
         
     
-        
+        if (not 'subcategory' in self.metas):
+            self.logger.info("[debug] %s --> %s" % (id_product, repr(self.metas)))
+            raise Exception("No subcategory")
         
         
         #category validations
